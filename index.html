@@ -53,13 +53,13 @@
     console.error(error);
   }
 
-  loader.src = "Build/BrowserRelease.loader.js";
+  loader.src = "Build/BrowserFixed.loader.js";
   loader.onerror = showError;
   loader.onload = () => {
     const config = {
-      dataUrl: "Build/BrowserRelease.data.unityweb",
-      frameworkUrl: "Build/BrowserRelease.framework.js.unityweb",
-      codeUrl: "Build/BrowserRelease.wasm.unityweb",
+      dataUrl: "Build/BrowserFixed.data.unityweb",
+      frameworkUrl: "Build/BrowserFixed.framework.js.unityweb",
+      codeUrl: "Build/BrowserFixed.wasm.unityweb",
       streamingAssetsUrl: "StreamingAssets",
       companyName: "DefaultCompany",
       productName: "What Should I Do",
