@@ -6,9 +6,7 @@ using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Rebuilds SampleScene as a bright cartoon town block: buildings, trees and characters are
-/// placed around the existing road, the street materials and sky get a kid-friendly palette,
-/// and the main camera is wired to follow the player.
+/// Rebuilds the school street and its surrounding neighborhood around the playable crossing.
 /// Menu: Tools > What Should I Do > Rebuild Street Layout
 /// </summary>
 public static class StreetLayoutBuilder
@@ -17,24 +15,26 @@ public static class StreetLayoutBuilder
     const string MaterialFolder = "Assets/Materials";
     const string SettingsFolder = "Assets/Settings";
     const string LayoutRootName = "StreetLayout";
+    const string ScenePath = "Assets/Scenes/SampleScene.unity";
 
     // Street metrics, read from the road objects already in SampleScene.
     const float GroundY = -0.1f;          // grass plane surface
     const float SidewalkTopY = 0.2f;      // sidewalks span |x| = 5..8, top at y = 0.2
-    const float BuildingSetbackX = 11.5f; // facade line, leaves a grass verge for trees
-    const float VergeTreeX = 9.9f;
-    const float LampX = 7.5f;
+    const float BuildingSetbackX = 12.3f; // facade line, leaves a grass verge for trees
+    const float LampX = 8.45f;
     const float PathX = 6.3f;             // walking line on each sidewalk
+    const float SouthJunctionZ = -59f;
+    const float NorthJunctionZ = 56f;
 
     // Every model is authored facing +Z, so a left-side building turns to face +X and a
     // right-side one faces -X. If a building ends up with its back to the street, add 180.
     const float BuildingYawLeft = 90f;
     const float BuildingYawRight = -90f;
 
-    static readonly Color GrassColor = new Color(0.45f, 0.82f, 0.42f);
-    static readonly Color SidewalkColor = new Color(0.94f, 0.92f, 0.84f);
-    static readonly Color RoadColor = new Color(0.30f, 0.33f, 0.42f);
-    static readonly Color PaintColor = new Color(0.99f, 0.99f, 0.96f);
+    static readonly Color GrassColor = new Color(0.39f, 0.67f, 0.38f);
+    static readonly Color SidewalkColor = new Color(0.91f, 0.865f, 0.76f);
+    static readonly Color RoadColor = new Color(0.34f, 0.385f, 0.45f);
+    static readonly Color PaintColor = new Color(1f, 0.99f, 0.93f);
 
     struct BuildingSpec
     {
@@ -74,56 +74,59 @@ public static class StreetLayoutBuilder
     public static void RebuildStreetLayout()
     {
         var scene = SceneManager.GetActiveScene();
-        if (!scene.IsValid())
+        if (Application.isBatchMode && scene.path != ScenePath)
+            scene = EditorSceneManager.OpenScene(ScenePath);
+
+        if (scene.path != ScenePath)
         {
-            Debug.LogError("[StreetLayout] No scene is open.");
+            Debug.LogError("[StreetLayout] Open SampleScene before rebuilding the street.");
             return;
         }
 
         var root = ResetLayoutRoot();
+        var surfaceGroup = NewGroup(root, "Streetscape");
         var buildingGroup = NewGroup(root, "Buildings");
         var treeGroup = NewGroup(root, "Trees");
         var characterGroup = NewGroup(root, "Characters");
         var propGroup = NewGroup(root, "Props");
+        var neighborhood = NewGroup(root, "Neighborhood");
+
+        ExtendStreet(surfaceGroup);
 
         // The player walks the right sidewalk toward +Z: corner store on the same side,
         // school across the zebra crossing, houses filling the block behind.
         var buildings = new[]
         {
-            new BuildingSpec("Store", 1, 21f, 6.6f),
-            new BuildingSpec("HouseTwo", 1, -5f, 6f),
-            new BuildingSpec("House", 1, -17f, 5.4f),
-            new BuildingSpec("School", -1, 22f, 9f),
-            new BuildingSpec("House", -1, 3f, 5.6f),
-            new BuildingSpec("HouseTwo", -1, -16f, 6.2f),
+            new BuildingSpec("Store", 1, 23f, 6.4f),
+            new BuildingSpec("HouseTwo", 1, 0f, 6.5f),
+            new BuildingSpec("House", 1, -15f, 6.1f),
+            new BuildingSpec("HouseTwo", 1, -35f, 6.2f),
+            new BuildingSpec("House", 1, 36f, 6.7f),
+            new BuildingSpec("HouseTwo", 1, 44f, 5.3f),
+            new BuildingSpec("School", -1, 19f, 8.9f),
+            new BuildingSpec("House", -1, 4f, 6.4f),
+            new BuildingSpec("HouseTwo", -1, -13f, 6.3f),
+            new BuildingSpec("House", -1, -32f, 5.7f),
+            new BuildingSpec("HouseTwo", -1, 33f, 6.6f),
+            new BuildingSpec("Store", -1, 43f, 6f),
         };
 
         foreach (var spec in buildings)
             PlaceBuilding(buildingGroup, spec);
 
-        // Verge trees only sit in the gaps between building footprints; the outer rows
-        // give the block a treeline instead of an empty green horizon.
+        AddFrontagePaths(surfaceGroup);
+        AddNeighborhood(neighborhood);
+
         var trees = new[]
         {
-            new TreeSpec("TreeFive", VergeTreeX, 7.5f, 5f, 20f),
-            new TreeSpec("TreeThree", VergeTreeX, 10.5f, 5.4f, 140f),
-            new TreeSpec("TreeFive", VergeTreeX, 13.5f, 4.8f, 75f),
-            new TreeSpec("TreeThree", VergeTreeX, -11.5f, 5.2f, 210f),
-            new TreeSpec("TreeThree", VergeTreeX, 28f, 5.8f, 300f),
-            new TreeSpec("TreeThree", -VergeTreeX, 9.5f, 5.2f, 320f),
-            new TreeSpec("TreeFive", -VergeTreeX, 12.5f, 4.8f, 55f),
-            new TreeSpec("TreeFive", -VergeTreeX, -4f, 5.4f, 190f),
-            new TreeSpec("TreeThree", -VergeTreeX, -8f, 5f, 260f),
-            new TreeSpec("TreeThree", -VergeTreeX, -24f, 5.6f, 95f),
-            new TreeSpec("TreeFive", -VergeTreeX, -27f, 5.2f, 15f),
-            new TreeSpec("TreeThree", 20.5f, 31f, 8.2f, 40f),
-            new TreeSpec("TreeFive", 21.5f, 10f, 7.8f, 165f),
-            new TreeSpec("TreeThree", 20f, -8f, 8.4f, 280f),
-            new TreeSpec("TreeFive", 21f, -28f, 8f, 90f),
-            new TreeSpec("TreeFive", -20.5f, 32f, 8.5f, 15f),
-            new TreeSpec("TreeThree", -21.5f, 11f, 7.6f, 235f),
-            new TreeSpec("TreeFive", -20f, -6f, 8f, 310f),
-            new TreeSpec("TreeThree", -21f, -27f, 8.6f, 120f),
+            new TreeSpec("TreeFive", 10.25f, 9.3f, 4.4f, 20f),
+            new TreeSpec("TreeThree", 10.6f, 30f, 5.5f, 240f),
+            new TreeSpec("TreeFive", 10.5f, -7.1f, 5.1f, 75f),
+            new TreeSpec("TreeThree", 11f, -24f, 5.3f, 210f),
+            new TreeSpec("TreeFive", -10.7f, 10.7f, 4.8f, 40f),
+            new TreeSpec("TreeThree", -11f, 27.3f, 5.4f, 190f),
+            new TreeSpec("TreeThree", -10.7f, -4.1f, 4.8f, 260f),
+            new TreeSpec("TreeFive", -11f, -22f, 5.2f, 95f),
         };
 
         foreach (var spec in trees)
@@ -136,13 +139,9 @@ public static class StreetLayoutBuilder
         var boyModel = SpawnModel("Boy", characterGroup, new Vector3(PathX, 0f, 6f), 1.5f, 0f, SidewalkTopY);
         var player = boyModel != null ? BuildPlayerRig(characterGroup, boyModel) : null;
 
-        var friend = SpawnModel("Girl", characterGroup, new Vector3(-PathX, 0f, 11.5f), 1.42f, 180f, SidewalkTopY);
-        if (friend != null)
-            friend.name = "Girl";
-
-        AddClouds(propGroup);
-        AddBushes(propGroup);
         AddStreetLamps(propGroup);
+        AddCrossingSigns(propGroup);
+        AddStreetColliders(root);
 
         CleanStrayDuplicates();
 
@@ -197,6 +196,151 @@ public static class StreetLayoutBuilder
         var group = new GameObject(name);
         group.transform.SetParent(parent, false);
         return group.transform;
+    }
+
+    static void ExtendStreet(Transform parent)
+    {
+        var ground = GameObject.Find("Ground");
+        ground.transform.localScale = new Vector3(32f, 1f, 28f);
+
+        float start = SouthJunctionZ + 5f;
+        float end = NorthJunctionZ - 5f;
+        float length = end - start;
+        float center = (start + end) * 0.5f;
+        ResizeStreetObject("MainRoad", center, length);
+        ResizeStreetObject("LeftSidewalk", center, length);
+        ResizeStreetObject("RightSidewalk", center, length);
+
+        var asphalt = GetStreetMaterial("RoadMaterial");
+        var sidewalk = GetStreetMaterial("New Material");
+        var paint = GetStreetMaterial("WhitePaint");
+        foreach (float junction in new[] { SouthJunctionZ, NorthJunctionZ })
+        {
+            var crossStreet = NewGroup(parent, junction > 0f ? "North side street" : "South side street");
+            CreatePrimitive(crossStreet, PrimitiveType.Cube, "Road",
+                new Vector3(0f, 0f, junction), new Vector3(136f, 0.2f, 10f), asphalt);
+
+            float outside = Mathf.Sign(junction);
+            CreatePrimitive(crossStreet, PrimitiveType.Cube, "Outer sidewalk",
+                new Vector3(0f, 0.05f, junction + outside * 6.5f), new Vector3(136f, 0.3f, 3f), sidewalk);
+
+            foreach (int side in new[] { -1, 1 })
+            {
+                CreatePrimitive(crossStreet, PrimitiveType.Cube, "Block corner",
+                    new Vector3(side * 38f, 0.05f, junction - outside * 6.5f), new Vector3(60f, 0.3f, 3f), sidewalk);
+
+                for (int x = 14; x < 68; x += 6)
+                {
+                    var dash = CreatePrimitive(crossStreet, PrimitiveType.Cube, "Lane divider",
+                        new Vector3(side * x, 0.105f, junction), new Vector3(2.5f, 0.01f, 0.19f), paint);
+                    dash.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
+                }
+            }
+        }
+
+        for (int z = -50; z <= 48; z += 5)
+        {
+            if (z >= -25 && z <= 25)
+                continue;
+
+            CreatePrimitive(parent, PrimitiveType.Cube, "Lane divider", new Vector3(0f, 0.105f, z),
+                new Vector3(0.3f, 0.01f, 1.5f), paint).GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
+        }
+    }
+
+    static void ResizeStreetObject(string name, float center, float length)
+    {
+        var surface = GameObject.Find(name).transform;
+        Vector3 position = surface.position;
+        Vector3 scale = surface.localScale;
+        position.z = center;
+        scale.z = length;
+        surface.position = position;
+        surface.localScale = scale;
+    }
+
+    static Material GetStreetMaterial(string name)
+    {
+        return AssetDatabase.LoadAssetAtPath<Material>($"{MaterialFolder}/{name}.mat");
+    }
+
+    static void AddFrontagePaths(Transform parent)
+    {
+        var paving = GetOrCreateMaterial("FrontagePaving", new Color(0.76f, 0.76f, 0.66f), 0.13f);
+        var seams = GetOrCreateMaterial("PavementJoints", new Color(0.76f, 0.705f, 0.61f), 0.05f);
+        var gardens = NewGroup(parent, "Building entrances");
+        CreatePrimitive(gardens, PrimitiveType.Cube, "School entrance", new Vector3(-10.2f, GroundY, 18.7f),
+            new Vector3(4.55f, 0.17f, 5.4f), paving);
+        CreatePrimitive(gardens, PrimitiveType.Cube, "Store entrance", new Vector3(10.2f, GroundY, 23.5f),
+            new Vector3(4.55f, 0.17f, 5.1f), paving);
+
+        foreach (int side in new[] { -1, 1 })
+        {
+            for (int z = -39; z <= 48; z += 3)
+            {
+                var joint = CreatePrimitive(parent, PrimitiveType.Cube, "Sidewalk joint",
+                    new Vector3(side * 6.5f, SidewalkTopY, z + 0.2f), new Vector3(2.94f, 0.007f, 0.032f), seams);
+                joint.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
+            }
+        }
+    }
+
+    static void AddNeighborhood(Transform parent)
+    {
+        var homes = NewGroup(parent, "Houses behind the main street");
+        foreach (int side in new[] { -1, 1 })
+        {
+            SpawnModel("HouseTwo", homes, new Vector3(side * 24f, 0f, 1f), 6.8f, side * -55f, GroundY);
+            SpawnModel("House", homes, new Vector3(side * 26f, 0f, 20f), 6.6f, side * -80f, GroundY);
+            SpawnModel("HouseTwo", homes, new Vector3(side * 27f, 0f, 36f), 6.85f, side * -110f, GroundY);
+            SpawnModel("Store", homes, new Vector3(side * 26f, 0f, 68f), 6.5f, 180f, GroundY);
+            SpawnModel("House", homes, new Vector3(side * 14f, 0f, 69f), 6.6f, 180f + side * 15f, GroundY);
+            SpawnModel("HouseTwo", homes, new Vector3(side * 43f, 0f, 69f), 7f, 180f, GroundY);
+        }
+
+        var trees = NewGroup(parent, "Neighborhood treeline");
+        var trunk = GetOrCreateMaterial("NeighborhoodBark", new Color(0.38f, 0.26f, 0.19f), 0.04f);
+        var leaf = GetOrCreateMaterial("NeighborhoodLeaf", new Color(0.28f, 0.59f, 0.36f), 0.08f);
+        var lightLeaf = GetOrCreateMaterial("NeighborhoodLeafLight", new Color(0.43f, 0.68f, 0.39f), 0.08f);
+        foreach (int side in new[] { -1, 1 })
+        {
+            for (int i = 0; i < 20; i++)
+            {
+                float x = side * (31f + i % 3 * 9f);
+                float z = -44f + i * 6.8f;
+                float height = 5.9f + i % 5 * 0.75f;
+                AddNeighborhoodTree(trees, trunk, i % 2 == 0 ? leaf : lightLeaf, x, z, height);
+            }
+        }
+
+        // A grove behind the side street gives the crossing a developed view to the horizon.
+        for (int i = 0; i < 19; i++)
+        {
+            float x = (i - 9) * 6.3f;
+            AddNeighborhoodTree(trees, trunk, i % 2 == 0 ? lightLeaf : leaf, x, 82f + i % 3 * 4.75f,
+                8f + i % 5 * 0.8f);
+        }
+
+        var hills = NewGroup(parent, "Park ridge");
+        foreach (int side in new[] { -1, 1 })
+        {
+            CreatePrimitive(hills, PrimitiveType.Sphere, "Outer hill", new Vector3(side * 69f, -7f, 100f),
+                new Vector3(108f, 27f, 60f), leaf).GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
+        }
+
+        CreatePrimitive(hills, PrimitiveType.Sphere, "Center hill", new Vector3(0f, -7f, 113f),
+            new Vector3(125f, 30f, 70f), lightLeaf).GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
+    }
+
+    static void AddNeighborhoodTree(Transform parent, Material bark, Material leaf, float x, float z, float height)
+    {
+        var tree = NewGroup(parent, "Tree");
+        var trunk = CreatePrimitive(tree, PrimitiveType.Cylinder, "Trunk",
+            new Vector3(x, GroundY + height * 0.25f, z), new Vector3(height * 0.075f, height * 0.25f, height * 0.075f), bark);
+        var crown = CreatePrimitive(tree, PrimitiveType.Sphere, "Crown",
+            new Vector3(x, GroundY + height * 0.69f, z), new Vector3(height * 0.67f, height * 0.62f, height * 0.61f), leaf);
+        trunk.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
+        crown.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
     }
 
     static GameObject PlaceBuilding(Transform parent, BuildingSpec spec)
@@ -258,9 +402,9 @@ public static class StreetLayoutBuilder
         return null;
     }
 
-    static Bounds MeasureBounds(GameObject instance)
+    static Bounds MeasureBounds(GameObject instance, Transform relativeTo = null)
     {
-        var bounds = new Bounds(instance.transform.position, Vector3.zero);
+        var bounds = new Bounds(Vector3.zero, Vector3.zero);
         bool hasBounds = false;
 
         foreach (var filter in instance.GetComponentsInChildren<MeshFilter>())
@@ -270,6 +414,9 @@ public static class StreetLayoutBuilder
 
             var local = filter.sharedMesh.bounds;
             var matrix = filter.transform.localToWorldMatrix;
+            if (relativeTo != null)
+                matrix = relativeTo.worldToLocalMatrix * matrix;
+
             for (int corner = 0; corner < 8; corner++)
             {
                 var point = new Vector3(
@@ -291,79 +438,109 @@ public static class StreetLayoutBuilder
         return bounds;
     }
 
-    static void AddClouds(Transform parent)
+    [MenuItem("Tools/What Should I Do/Refresh Street Colliders", priority = 15)]
+    public static void RefreshStreetColliders()
     {
-        var cloudMaterial = GetOrCreateMaterial("Cloud", new Color(0.98f, 0.99f, 1f), 0f);
-        if (cloudMaterial == null)
+        var scene = Application.isBatchMode
+            ? EditorSceneManager.OpenScene("Assets/Scenes/SampleScene.unity")
+            : SceneManager.GetActiveScene();
+        foreach (var root in scene.GetRootGameObjects())
+        {
+            if (root.name != LayoutRootName)
+                continue;
+
+            AddStreetColliders(root.transform);
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            return;
+        }
+
+        throw new System.InvalidOperationException("The open scene is missing StreetLayout.");
+    }
+
+    static void AddStreetColliders(Transform layout)
+    {
+        var existing = layout.Find("Street Colliders");
+        if (existing != null)
+            Object.DestroyImmediate(existing.gameObject);
+
+        var colliders = NewGroup(layout, "Street Colliders");
+        foreach (Transform building in layout.Find("Buildings"))
+            AddBoxCollider(colliders, building, new Vector3(0.9f, 0.85f, 0.9f));
+
+        foreach (Transform tree in layout.Find("Trees"))
+            AddBoxCollider(colliders, tree, new Vector3(0.68f, 0.27f, 0.32f));
+
+        foreach (Transform prop in layout.Find("Props"))
+        {
+            var post = prop.Find("Post");
+            if (post != null)
+                AddBoxCollider(colliders, post, Vector3.one);
+        }
+    }
+
+    static void AddBoxCollider(Transform group, Transform model, Vector3 fit)
+    {
+        Bounds bounds = MeasureBounds(model.gameObject, model);
+        if (bounds.size == Vector3.zero)
             return;
 
-        var centers = new[]
-        {
-            new Vector3(-18f, 26f, 34f), new Vector3(4f, 30f, 42f), new Vector3(22f, 24f, 22f),
-            new Vector3(-8f, 31f, -18f), new Vector3(17f, 27f, -34f),
-        };
-        var puffOffsets = new[] { Vector3.zero, new Vector3(5.5f, 0.6f, 0.4f), new Vector3(-5.2f, -0.4f, -0.6f) };
-        var puffSizes = new[] { new Vector3(9f, 4.4f, 6f), new Vector3(7f, 3.4f, 5f), new Vector3(6.4f, 3f, 4.6f) };
+        Vector3 size = Vector3.Scale(bounds.size, fit);
+        Vector3 center = new Vector3(bounds.center.x, bounds.min.y + size.y * 0.5f, bounds.center.z);
+        var collision = NewGroup(group, model.parent.name + " / " + model.name);
+        collision.SetPositionAndRotation(model.TransformPoint(center), model.rotation);
+        collision.gameObject.AddComponent<BoxCollider>().size = Vector3.Scale(size, model.lossyScale);
+    }
 
-        for (int i = 0; i < centers.Length; i++)
+    static void AddCrossingSigns(Transform parent)
+    {
+        var metal = GetOrCreateMaterial("LampPost", new Color(0.18f, 0.27f, 0.29f), 0.25f);
+        var yellow = GetOrCreateMaterial("CrossingSignYellow", new Color(1f, 0.73f, 0.23f), 0.16f);
+
+        foreach (var position in new[] { new Vector3(8.75f, 0f, 15.7f), new Vector3(-8.75f, 0f, 19.8f) })
         {
-            var cluster = NewGroup(parent, $"Cloud {i + 1}");
-            for (int p = 0; p < puffOffsets.Length; p++)
+            var sign = NewGroup(parent, "Crossing sign");
+            CreatePrimitive(sign, PrimitiveType.Cylinder, "Signpost", position + Vector3.up * 1.35f,
+                new Vector3(0.08f, 1.45f, 0.08f), metal);
+
+            Vector3 center = position + Vector3.up * 2.65f;
+            CreatePrimitive(sign, PrimitiveType.Cube, "Diamond border", center, new Vector3(0.78f, 0.78f, 0.09f), metal)
+                .transform.rotation = Quaternion.Euler(0f, 0f, 45f);
+            CreatePrimitive(sign, PrimitiveType.Cube, "Reflective face", center,
+                new Vector3(0.71f, 0.71f, 0.112f), yellow).transform.rotation = Quaternion.Euler(0f, 0f, 45f);
+
+            foreach (int face in new[] { -1, 1 })
             {
-                var puff = CreatePrimitive(cluster, PrimitiveType.Sphere, $"Puff {p + 1}",
-                    centers[i] + puffOffsets[p], puffSizes[p], cloudMaterial);
-
-                var renderer = puff.GetComponent<Renderer>();
-                renderer.shadowCastingMode = ShadowCastingMode.Off;
-                renderer.receiveShadows = false;
+                Vector3 icon = center + Vector3.forward * (face * 0.065f);
+                CreatePrimitive(sign, PrimitiveType.Sphere, "Walker head", icon + Vector3.up * 0.23f,
+                    new Vector3(0.13f, 0.13f, 0.03f), metal);
+                DrawSignStroke(sign, metal, icon, new Vector2(-0.035f, 0.12f), new Vector2(0.03f, -0.075f));
+                DrawSignStroke(sign, metal, icon, new Vector2(-0.035f, 0.11f), new Vector2(-0.155f, -0.03f));
+                DrawSignStroke(sign, metal, icon, new Vector2(-0.035f, 0.10f), new Vector2(0.16f, 0.04f));
+                DrawSignStroke(sign, metal, icon, new Vector2(0.03f, -0.07f), new Vector2(-0.08f, -0.26f));
+                DrawSignStroke(sign, metal, icon, new Vector2(0.03f, -0.07f), new Vector2(0.18f, -0.23f));
             }
         }
     }
 
-    static void AddBushes(Transform parent)
+    static void DrawSignStroke(Transform sign, Material material, Vector3 center, Vector2 start, Vector2 end)
     {
-        var bushMaterial = GetOrCreateMaterial("Bush", new Color(0.30f, 0.70f, 0.35f), 0.05f);
-        var flowerMaterial = GetOrCreateMaterial("Flower", new Color(1f, 0.55f, 0.72f), 0.1f,
-            new Color(0.7f, 0.18f, 0.34f));
-        if (bushMaterial == null)
-            return;
-
-        var spots = new[]
-        {
-            new Vector3(8.7f, 0f, 4.5f), new Vector3(8.7f, 0f, 15.5f), new Vector3(8.7f, 0f, -11.5f),
-            new Vector3(8.7f, 0f, -22f), new Vector3(-8.7f, 0f, 4.5f), new Vector3(-8.7f, 0f, 15.5f),
-            new Vector3(-8.7f, 0f, -11.5f), new Vector3(-8.7f, 0f, -22f),
-        };
-        var flowerOffsets = new[]
-        {
-            new Vector3(0.32f, 0.32f, 0.1f), new Vector3(-0.26f, 0.3f, -0.22f), new Vector3(0.02f, 0.34f, -0.3f),
-        };
-
-        for (int i = 0; i < spots.Length; i++)
-        {
-            var bush = NewGroup(parent, $"Bush {i + 1}");
-            CreatePrimitive(bush, PrimitiveType.Sphere, "Leaves",
-                new Vector3(spots[i].x, GroundY + 0.45f, spots[i].z), new Vector3(1.7f, 1.1f, 1.7f), bushMaterial);
-
-            if (flowerMaterial == null)
-                continue;
-
-            foreach (var offset in flowerOffsets)
-                CreatePrimitive(bush, PrimitiveType.Sphere, "Flower",
-                    new Vector3(spots[i].x + offset.x, GroundY + 0.75f + offset.y, spots[i].z + offset.z),
-                    Vector3.one * 0.24f, flowerMaterial);
-        }
+        Vector2 direction = end - start;
+        var stroke = CreatePrimitive(sign, PrimitiveType.Cube, "Walker symbol", center + (Vector3)((start + end) * 0.5f),
+            new Vector3(0.046f, direction.magnitude, 0.023f), material);
+        stroke.transform.rotation = Quaternion.Euler(0f, 0f, Vector2.SignedAngle(Vector2.up, direction));
+        stroke.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
     }
 
     static void AddStreetLamps(Transform parent)
     {
-        var postMaterial = GetOrCreateMaterial("LampPost", new Color(0.22f, 0.26f, 0.33f), 0.4f);
-        var glowMaterial = GetOrCreateMaterial("LampGlow", new Color(1f, 0.88f, 0.6f), 0.5f,
-            new Color(3.2f, 2.4f, 1.1f));
+        var postMaterial = GetOrCreateMaterial("LampPost", new Color(0.18f, 0.27f, 0.29f), 0.25f);
+        var glowMaterial = GetOrCreateMaterial("LampGlow", new Color(1f, 0.93f, 0.77f), 0.28f,
+            new Color(0.52f, 0.42f, 0.25f));
         if (postMaterial == null)
             return;
 
-        var lampZ = new[] { -13f, 8f, 27f };
+        var lampZ = new[] { -37f, -17f, 4.5f, 28.5f, 48f };
         foreach (int side in new[] { -1, 1 })
         {
             for (int i = 0; i < lampZ.Length; i++)
@@ -372,13 +549,17 @@ public static class StreetLayoutBuilder
                 var lamp = NewGroup(parent, $"Street Lamp {(side < 0 ? "Left" : "Right")} {i + 1}");
 
                 CreatePrimitive(lamp, PrimitiveType.Cylinder, "Post",
-                    new Vector3(x, SidewalkTopY + 2.1f, lampZ[i]), new Vector3(0.16f, 2.1f, 0.16f), postMaterial);
+                    new Vector3(x, GroundY + 1.96f, lampZ[i]), new Vector3(0.12f, 1.99f, 0.12f), postMaterial);
+                CreatePrimitive(lamp, PrimitiveType.Cylinder, "Post base",
+                    new Vector3(x, GroundY + 0.24f, lampZ[i]), new Vector3(0.28f, 0.25f, 0.28f), postMaterial);
+                CreatePrimitive(lamp, PrimitiveType.Cylinder, "Lamp cap",
+                    new Vector3(x, GroundY + 4.32f, lampZ[i]), new Vector3(0.56f, 0.04f, 0.56f), postMaterial);
 
                 if (glowMaterial == null)
                     continue;
 
-                var globe = CreatePrimitive(lamp, PrimitiveType.Sphere, "Globe",
-                    new Vector3(x, SidewalkTopY + 4.35f, lampZ[i]), Vector3.one * 0.42f, glowMaterial);
+                var globe = CreatePrimitive(lamp, PrimitiveType.Cylinder, "Lamp glass",
+                    new Vector3(x, GroundY + 4.09f, lampZ[i]), new Vector3(0.36f, 0.18f, 0.36f), glowMaterial);
                 globe.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
             }
         }
@@ -454,12 +635,20 @@ public static class StreetLayoutBuilder
 
     static void ApplySkyAndSun()
     {
+        RenderSettings.fog = true;
+        RenderSettings.fogMode = FogMode.Linear;
+        RenderSettings.fogColor = new Color(0.77f, 0.89f, 0.89f);
+        RenderSettings.fogStartDistance = 55f;
+        RenderSettings.fogEndDistance = 150f;
+
         var skyMaterial = GetOrCreateSkyMaterial();
         if (skyMaterial != null)
         {
             RenderSettings.skybox = skyMaterial;
-            RenderSettings.ambientMode = AmbientMode.Skybox;
-            RenderSettings.ambientIntensity = 1.15f;
+            RenderSettings.ambientMode = AmbientMode.Trilight;
+            RenderSettings.ambientSkyColor = new Color(0.69f, 0.81f, 0.89f);
+            RenderSettings.ambientEquatorColor = new Color(0.54f, 0.58f, 0.59f);
+            RenderSettings.ambientGroundColor = new Color(0.34f, 0.36f, 0.29f);
         }
 
         var sunObject = GameObject.Find("Directional Light");
@@ -471,8 +660,8 @@ public static class StreetLayoutBuilder
         }
 
         sun.type = LightType.Directional;
-        sun.color = new Color(1f, 0.96f, 0.88f);
-        sun.intensity = 1.7f;
+        sun.color = new Color(1f, 0.97f, 0.89f);
+        sun.intensity = 1.38f;
         sun.shadows = LightShadows.Soft;
         sun.shadowStrength = 0.7f;
         sunObject.transform.rotation = Quaternion.Euler(48f, -35f, 0f);
@@ -485,25 +674,22 @@ public static class StreetLayoutBuilder
     {
         string path = $"{SettingsFolder}/Sky_BrightCartoon.mat";
         var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+        var shader = Shader.Find("What Should I Do/Neighborhood Sky");
+        if (shader == null)
+        {
+            Debug.LogWarning("[StreetLayout] Neighborhood Sky shader not found, keeping the current sky.");
+            return material;
+        }
 
         if (material == null)
         {
-            var shader = Shader.Find("Skybox/Procedural");
-            if (shader == null)
-            {
-                Debug.LogWarning("[StreetLayout] Skybox/Procedural shader not found, keeping the current sky.");
-                return null;
-            }
-
             material = new Material(shader) { name = "Sky_BrightCartoon" };
             AssetDatabase.CreateAsset(material, path);
         }
 
-        material.SetColor("_SkyTint", new Color(0.36f, 0.63f, 0.95f));
-        material.SetColor("_GroundColor", new Color(0.66f, 0.78f, 0.90f));
-        material.SetFloat("_AtmosphereThickness", 1.15f);
-        material.SetFloat("_Exposure", 1.35f);
-        material.SetFloat("_SunSize", 0.045f);
+        material.shader = shader;
+        material.SetColor("_HorizonColor", RenderSettings.fogColor);
+        material.SetColor("_ZenithColor", new Color(0.36f, 0.69f, 0.89f));
         EditorUtility.SetDirty(material);
 
         return material;
@@ -604,8 +790,7 @@ public static class StreetLayoutBuilder
         Debug.Log($"[StreetLayout] Removed {removed} stray model duplicates from the scene root.");
     }
 
-    /// Wraps the model in a pivot at his feet, so movement and the camera use a sensible origin
-    /// instead of the model's mid-body pivot.
+    /// Both avatars share a controller and a foot-level pivot.
     static Transform BuildPlayerRig(Transform characters, GameObject model)
     {
         var playerObject = new GameObject("Player");
@@ -625,6 +810,14 @@ public static class StreetLayoutBuilder
         var walker = playerObject.AddComponent<PlayerWalker>();
         walker.walkSpeed = 3.2f;
         walker.model = model.transform;
+
+        var girl = SpawnModel("Girl", playerObject.transform, playerObject.transform.position, 1.5f, 0f, SidewalkTopY);
+        if (girl != null)
+        {
+            girl.name = "Girl Model";
+            girl.SetActive(false);
+            walker.SetGirlModel(girl.transform);
+        }
 
         return playerObject.transform;
     }
@@ -657,7 +850,7 @@ public static class StreetLayoutBuilder
         var camera = cameraObject.GetComponent<Camera>();
         if (camera != null)
         {
-            camera.fieldOfView = 55f;
+            camera.fieldOfView = 63f;
             camera.nearClipPlane = 0.1f;
             camera.farClipPlane = 400f;
         }
@@ -674,9 +867,11 @@ public static class StreetLayoutBuilder
         if (follow == null)
             follow = cameraObject.AddComponent<ThirdPersonFollowCamera>();
 
-        follow.offset = new Vector3(0.6f, 3.6f, -7.5f);
-        follow.lookHeight = 1.4f;
-        follow.lookAhead = 5f;
+        follow.offset = new Vector3(-2.2f, 6.4f, -9.5f);
+        follow.lookHeight = 1f;
+        follow.lookSide = -2.75f;
+        follow.lookAhead = 6.5f;
+        follow.damping = 7f;
 
         if (player != null)
         {

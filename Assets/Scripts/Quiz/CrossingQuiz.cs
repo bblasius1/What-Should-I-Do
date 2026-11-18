@@ -1,10 +1,10 @@
+using System;
 using System.Collections;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
-/// <summary>
-/// The game: walking up to the zebra crossing starts a short safety quiz, every answer must be
-/// right before the crossing opens, and reaching the far sidewalk wins the round.
-/// </summary>
+/// <summary>Runs the sidewalk approach, safety quiz, and zebra crossing in one replayable round.</summary>
+[DefaultExecutionOrder(100)]
 public class CrossingQuiz : MonoBehaviour
 {
     [System.Serializable]
@@ -16,145 +16,536 @@ public class CrossingQuiz : MonoBehaviour
         public string hint;
     }
 
-    [Header("Where the questions open, just before the zebra crossing")]
-    public Vector3 gateCenter = new Vector3(6.3f, 0.2f, 12.5f);
-    public float gateRadius = 2.5f;
+    enum Stage { Welcome, Approach, Quiz, Crossing, Complete, School, SchoolComplete, Playground, PlaygroundComplete }
+    enum CurbLook { Left = -1, None, Right }
 
-    [Header("Win when the player reaches the far sidewalk across the crossing")]
+    const float CurbClearance = 0.15f;
+    const float CurbTolerance = 0.03f;
+    const float CurbLookRange = 0.7f;
+    const float LookCheckSeconds = 0.4f;
+    const float StripeTolerance = 0.2f;
+    const float CrossingApproachDistance = 3f;
+    const float SidewalkOuterEdge = 7.85f;
+    const float StreetEnd = 29.5f;
+    const string MoveHint = "Move with WASD, arrow keys, or a gamepad.";
+
+    [Header("Where the quiz opens on the near sidewalk")]
+    public Vector3 gateCenter = new Vector3(6.3f, 0.2f, 12.5f);
+    [Min(0.1f)] public float gateRadius = 2.5f;
+
+    [Header("Crossing and far sidewalk")]
+    [Min(0.1f)] public float roadHalfWidth = 5f;
     public float farSideX = -5.2f;
-    public float crossingZMin = 12f;
-    public float crossingZMax = 20f;
+    public float crossingZMin = 13f;
+    public float crossingZMax = 19f;
 
     public Question[] questions = BuildDefaultQuestions();
 
     PlayerWalker player;
+    ThirdPersonFollowCamera followCamera;
+    Camera viewCamera;
     QuizUi ui;
+    WelcomeMenu welcome;
+    StreetTraffic traffic;
+    SchoolHelpStage school;
+    PlaygroundStage playground;
     Vector3 startPosition;
     Quaternion startRotation;
-    int index;
-    bool gateCleared;
-    bool busy;
-    bool resolving;
-    bool finished;
+    Stage stage;
+    int questionIndex;
+    int crossingMistakes;
+    bool crossingAttemptScored;
+    bool transitioning;
+    string routeReminder;
+    float reminderUntil;
+    bool practiceStarted;
+    bool checkedLeft;
+    bool checkedRight;
+    CurbLook curbLook;
+    float lookHeldSeconds;
+
+    float NearCurbX => roadHalfWidth + CurbClearance;
+    internal float StripeStart => crossingZMin - StripeTolerance;
+    internal float StripeEnd => crossingZMax + StripeTolerance;
+    float StripeCenter => (crossingZMin + crossingZMax) * 0.5f;
+
+    internal bool IsTrafficYieldRequested
+    {
+        get
+        {
+            if (player == null || stage != Stage.Crossing || !practiceStarted)
+                return false;
+
+            Vector3 position = player.transform.position;
+            return position.x >= farSideX && position.z >= StripeStart - CrossingApproachDistance &&
+                position.z <= StripeEnd + CrossingApproachDistance;
+        }
+    }
 
     void Start()
     {
         player = FindAnyObjectByType<PlayerWalker>();
         if (player == null)
         {
-            Debug.LogError("[CrossingQuiz] No PlayerWalker in the scene, the quiz is disabled.");
+            Debug.LogError("[CrossingQuiz] No PlayerWalker in the scene.");
             enabled = false;
             return;
         }
 
+        if (!HasPlayableQuestions())
+        {
+            Debug.LogWarning("[CrossingQuiz] The configured quiz has invalid questions. Using the default questions.");
+            questions = BuildDefaultQuestions();
+        }
+
         startPosition = player.transform.position;
         startRotation = player.transform.rotation;
-
+        player.CrossingRules = this;
+        followCamera = FindAnyObjectByType<ThirdPersonFollowCamera>();
+        viewCamera = Camera.main;
         ui = QuizUi.Create(transform);
+        welcome = WelcomeMenu.Create(transform, player, followCamera, RequestLevel);
+        var road = GameObject.Find("MainRoad");
+        if (road != null && road.TryGetComponent(out Renderer surface))
+        {
+            traffic = gameObject.AddComponent<StreetTraffic>();
+            traffic.Initialize(this, surface.bounds);
+        }
+        ShowWelcome();
     }
 
     void Update()
     {
-        if (player == null || busy)
+        switch (stage)
+        {
+            case Stage.Approach:
+                Vector3 offset = player.transform.position - gateCenter;
+                offset.y = 0f;
+                if (offset.sqrMagnitude <= gateRadius * gateRadius)
+                {
+                    stage = Stage.Quiz;
+                    player.enabled = false;
+                    ShowCurrentQuestion();
+                }
+                break;
+            case Stage.Crossing:
+                Vector3 position = player.transform.position;
+                if (position.x <= farSideX && IsOnCrossing(position.z))
+                    Win();
+                else
+                    UpdateCurbLook(position);
+                break;
+        }
+    }
+
+    void LateUpdate()
+    {
+        if (stage != Stage.Approach && stage != Stage.Crossing)
             return;
 
         Vector3 position = player.transform.position;
-
-        if (!gateCleared)
+        bool approaching = stage == Stage.Approach;
+        bool atStripes = IsOnCrossing(position.z);
+        if (!approaching && IsAtCurb(position))
         {
-            Vector3 offset = position - gateCenter;
-            offset.y = 0f;
-
-            if (offset.sqrMagnitude <= gateRadius * gateRadius)
-                AskQuestions();
+            ShowCurbObjective();
+            ui.ShowWaypoint(null, default, string.Empty);
             return;
         }
 
-        if (!finished && position.x < farSideX && position.z > crossingZMin && position.z < crossingZMax)
-            Win();
+        string objective = approaching
+            ? "Walk to the zebra crossing."
+            : "Walk to the white stripes.";
+        if (!approaching && atStripes)
+            objective = position.x >= NearCurbX ? "Walk up to the curb." : "Walk across the white stripes.";
+        string hint = Time.unscaledTime < reminderUntil ? routeReminder : MoveHint;
+        ui.ShowObjective(objective, hint);
+
+        bool showFarSide = !approaching && atStripes;
+        Vector3 waypoint = new Vector3(showFarSide ? farSideX - 0.9f : gateCenter.x, gateCenter.y + 0.8f, StripeCenter);
+        ui.ShowWaypoint(viewCamera, waypoint, showFarSide ? "Other sidewalk" : "Zebra crossing");
     }
 
-    void AskQuestions()
+    internal Vector3 ConstrainMovement(Vector3 position, Vector3 step)
     {
-        busy = true;
-        index = 0;
-        player.enabled = false;
-        ShowCurrentQuestion();
+        if (stage == Stage.School)
+            return school.ConstrainMovement(position, step);
+        if (stage == Stage.Playground)
+            return playground.ConstrainMovement(position, step);
+
+        if (step.x >= -0.0001f)
+            crossingAttemptScored = false;
+
+        Vector3 destination = position + step;
+        destination.x = Mathf.Clamp(destination.x, -SidewalkOuterEdge, SidewalkOuterEdge);
+        destination.z = Mathf.Clamp(destination.z, -StreetEnd, StreetEnd);
+
+        if (stage == Stage.Crossing && IsAtCurb(position) && ReadCurbLook() != CurbLook.None)
+            return new Vector3(0f, step.y, 0f);
+
+        if (destination.x >= NearCurbX)
+            return destination - position;
+
+        if (stage == Stage.Approach)
+        {
+            destination.x = NearCurbX;
+            ScoreBlockedCrossing();
+            Remind("Stay on the sidewalk and head to the zebra crossing.");
+        }
+        else if (stage == Stage.Crossing && !IsOnCrossing(destination.z))
+        {
+            if (position.x >= NearCurbX)
+            {
+                destination.x = NearCurbX;
+                ScoreBlockedCrossing();
+            }
+            else
+                destination.z = Mathf.Clamp(destination.z, StripeStart, StripeEnd);
+
+            Remind("Use the white stripes to cross the road.");
+        }
+        else if (stage == Stage.Crossing && position.x >= NearCurbX - CurbTolerance)
+        {
+            BeginCurbPractice();
+            if (!checkedLeft || !checkedRight || (traffic != null && !traffic.CanEnterCrossing()))
+            {
+                destination.x = NearCurbX;
+                ScoreBlockedCrossing();
+            }
+        }
+
+        return destination - position;
+    }
+
+    void ScoreBlockedCrossing()
+    {
+        if (crossingAttemptScored)
+            return;
+
+        crossingAttemptScored = true;
+        crossingMistakes++;
+    }
+
+    bool IsOnCrossing(float z) => z >= StripeStart && z <= StripeEnd;
+
+    bool IsAtCurb(Vector3 position) => IsOnCrossing(position.z) &&
+        position.x >= NearCurbX - CurbTolerance && position.x <= NearCurbX + CurbLookRange;
+
+    static CurbLook ReadCurbLook()
+    {
+        var keyboard = Keyboard.current;
+        var gamepad = Gamepad.current;
+        bool left = keyboard?.qKey.isPressed == true || gamepad?.leftShoulder.isPressed == true;
+        bool right = keyboard?.eKey.isPressed == true || gamepad?.rightShoulder.isPressed == true;
+        if (left == right)
+            return CurbLook.None;
+
+        return left ? CurbLook.Left : CurbLook.Right;
+    }
+
+    void BeginCurbPractice()
+    {
+        if (practiceStarted)
+            return;
+
+        practiceStarted = true;
+        traffic?.BeginCrossingPractice();
+    }
+
+    void UpdateCurbLook(Vector3 position)
+    {
+        if (!IsAtCurb(position))
+        {
+            ResetLookChecks();
+            return;
+        }
+
+        BeginCurbPractice();
+        CurbLook look = ReadCurbLook();
+        if (look != curbLook)
+        {
+            curbLook = look;
+            lookHeldSeconds = 0f;
+            followCamera?.SetCurbLook((int)look);
+        }
+
+        if (look == CurbLook.None)
+            return;
+
+        lookHeldSeconds += Time.unscaledDeltaTime;
+        if (lookHeldSeconds < LookCheckSeconds)
+            return;
+
+        if (look == CurbLook.Left)
+            checkedLeft = true;
+        else
+            checkedRight = true;
+    }
+
+    CurbLook BlockingTraffic()
+    {
+        if (traffic == null)
+            return CurbLook.None;
+        if (traffic.IsApproachBlocked(false))
+            return CurbLook.Right;
+        return traffic.IsApproachBlocked(true) ? CurbLook.Left : CurbLook.None;
+    }
+
+    void ShowCurbObjective()
+    {
+        if (curbLook != CurbLook.None)
+        {
+            bool left = curbLook == CurbLook.Left;
+            bool movingTraffic = traffic != null && traffic.IsApproachBlocked(left);
+            string observation = movingTraffic ? "Traffic is still moving. Wait at the curb." :
+                "Traffic on this side is clear or stopped.";
+            ui.ShowObjective(left ? "Looking left" : "Looking right", observation);
+        }
+        else if (!checkedLeft && !checkedRight)
+        {
+            ui.ShowObjective("Look both ways.", "Hold Q or LB to look left. Hold E or RB to look right.");
+        }
+        else if (!checkedLeft || !checkedRight)
+        {
+            if (!checkedLeft)
+                ui.ShowObjective("Now look left.", "Hold Q or LB and check for moving traffic.");
+            else
+                ui.ShowObjective("Now look right.", "Hold E or RB and check for moving traffic.");
+        }
+        else
+        {
+            CurbLook blocker = BlockingTraffic();
+            if (blocker == CurbLook.None)
+                ui.ShowObjective("Cross on the white stripes.", "Keep watching for traffic as you cross.");
+            else
+                ui.ShowObjective("Wait at the curb.", blocker == CurbLook.Left ?
+                    "A vehicle from the left is still moving." : "A vehicle from the right is still moving.");
+        }
+    }
+
+    void ResetLookChecks()
+    {
+        checkedLeft = false;
+        checkedRight = false;
+        lookHeldSeconds = 0f;
+        if (curbLook == CurbLook.None)
+            return;
+
+        curbLook = CurbLook.None;
+        followCamera?.SetCurbLook(0);
+    }
+
+    void Remind(string message)
+    {
+        routeReminder = message;
+        reminderUntil = Time.unscaledTime + 2f;
     }
 
     void ShowCurrentQuestion()
     {
-        resolving = false;
-        var question = questions[index];
-        ui.ShowQuestion(question.prompt, question.answers, OnAnswer);
+        var question = questions[questionIndex];
+        ui.ShowQuestion(questionIndex + 1, questions.Length, question.prompt, question.answers, OnAnswer);
     }
 
     void OnAnswer(int choice)
     {
-        if (resolving)
-            return;
-
-        var question = questions[index];
+        var question = questions[questionIndex];
         if (choice != question.correctIndex)
         {
-            ui.ShowFeedback(question.hint, false);
+            crossingMistakes++;
+            ui.ShowFeedback(string.IsNullOrWhiteSpace(question.hint) ? "Try another answer." : question.hint, false);
             return;
         }
 
-        resolving = true;
         ui.ShowFeedback("That's right!", true);
         StartCoroutine(AdvanceAfterDelay());
     }
 
     IEnumerator AdvanceAfterDelay()
     {
-        yield return new WaitForSeconds(1f);
+        yield return new WaitForSecondsRealtime(0.9f);
 
-        index++;
-        if (index < questions.Length)
+        questionIndex++;
+        if (questionIndex < questions.Length)
         {
             ShowCurrentQuestion();
             yield break;
         }
 
-        StartCoroutine(OpenCrossing());
-    }
-
-    IEnumerator OpenCrossing()
-    {
-        ui.ShowGo("Great! Look both ways, then cross on the white stripes.");
-        yield return new WaitForSeconds(1.8f);
-
-        ui.Hide();
-        gateCleared = true;
-        busy = false;
+        stage = Stage.Crossing;
+        Remind("Look both ways and listen before stepping out.");
+        ui.HideModal();
         player.enabled = true;
     }
 
     void Win()
     {
-        finished = true;
-        busy = true;
+        stage = Stage.Complete;
+        ResetLookChecks();
+        ShowLevelResult(GameLevel.Crossing, LevelProgress.StarsForMistakes(crossingMistakes));
+    }
+
+    void RequestLevel(GameLevel level)
+    {
+        if (LevelProgress.Best(level) == 0 && LevelProgress.FirstUnfinished() != level)
+            return;
+
+        TransitionTo(() => EnterLevel(level));
+    }
+
+    void EnterLevel(GameLevel level)
+    {
+        school?.Stop();
+        playground?.Stop();
+        welcome.HideForPlay();
+        ResetLookChecks();
+        ui.SetLevelHeading(level);
+
+        switch (level)
+        {
+            case GameLevel.Crossing:
+                Restart();
+                break;
+            case GameLevel.School:
+                stage = Stage.School;
+                if (school == null)
+                    school = gameObject.AddComponent<SchoolHelpStage>();
+                school.Begin(player, ui, viewCamera, CompleteSchool);
+                break;
+            case GameLevel.Playground:
+                stage = Stage.Playground;
+                if (playground == null)
+                    playground = gameObject.AddComponent<PlaygroundStage>();
+                playground.Begin(player, ui, viewCamera, CompletePlayground);
+                break;
+        }
+
+        followCamera?.SetLevelView(level);
+    }
+
+    void CompleteSchool(int stars)
+    {
+        if (stage != Stage.School)
+            return;
+
+        stage = Stage.SchoolComplete;
+        ShowLevelResult(GameLevel.School, stars);
+    }
+
+    void CompletePlayground(int stars)
+    {
+        if (stage != Stage.Playground)
+            return;
+
+        stage = Stage.PlaygroundComplete;
+        ShowLevelResult(GameLevel.Playground, stars);
+    }
+
+    void ShowLevelResult(GameLevel level, int stars)
+    {
         player.enabled = false;
-        ui.ShowWin("You made it to school safely!\nWell done.", Restart);
+        int best = LevelProgress.Record(level, stars);
+        Action next = level switch
+        {
+            GameLevel.Crossing => () => RequestLevel(GameLevel.School),
+            GameLevel.School => () => RequestLevel(GameLevel.Playground),
+            _ => null,
+        };
+        ui.ShowLevelResult(level, stars, best, () => RequestLevel(level), () => TransitionTo(ShowWelcome), next);
+    }
+
+    void TransitionTo(Action action)
+    {
+        if (transitioning)
+            return;
+
+        transitioning = true;
+        StartCoroutine(TransitionRoutine(action));
+    }
+
+    IEnumerator TransitionRoutine(Action action)
+    {
+        yield return FadeScreen(0f, 1f, 0.18f);
+        action();
+        yield return null;
+        yield return FadeScreen(1f, 0f, 0.28f);
+        transitioning = false;
+    }
+
+    IEnumerator FadeScreen(float start, float end, float duration)
+    {
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            ui.SetTransitionOpacity(Mathf.SmoothStep(start, end, elapsed / duration));
+            yield return null;
+        }
+        ui.SetTransitionOpacity(end);
+    }
+
+    void ShowWelcome()
+    {
+        stage = Stage.Welcome;
+        school?.Stop();
+        playground?.Stop();
+        followCamera?.SetLevelView(GameLevel.Crossing);
+        ui.SetLevelHeading(GameLevel.Crossing);
+        ResetLookChecks();
+        player.enabled = false;
+        player.ResetTo(startPosition, startRotation);
+        ui.HideModal();
+        ui.SetVisible(false);
+        welcome.Show();
+
+        if (viewCamera != null)
+        {
+            Vector3 towardCamera = viewCamera.transform.position - player.transform.position;
+            towardCamera.y = 0f;
+            if (towardCamera.sqrMagnitude > 0.001f)
+                player.transform.rotation = Quaternion.LookRotation(towardCamera);
+        }
     }
 
     void Restart()
     {
-        ui.HideWin();
-
-        player.transform.SetPositionAndRotation(startPosition, startRotation);
+        practiceStarted = false;
+        crossingMistakes = 0;
+        crossingAttemptScored = false;
+        player.ResetTo(startPosition, startRotation);
+        questionIndex = 0;
+        reminderUntil = 0f;
+        stage = Stage.Approach;
+        ui.SetVisible(true);
+        ui.HideModal();
         player.enabled = true;
+    }
 
-        var follow = FindAnyObjectByType<ThirdPersonFollowCamera>();
-        if (follow != null)
-            follow.SnapToTarget();
+    bool HasPlayableQuestions()
+    {
+        if (questions == null || questions.Length == 0)
+            return false;
 
-        index = 0;
-        gateCleared = false;
-        resolving = false;
-        busy = false;
-        finished = false;
+        foreach (var question in questions)
+        {
+            if (question == null || string.IsNullOrWhiteSpace(question.prompt) ||
+                question.answers == null || question.answers.Length < 2 ||
+                question.answers.Length > QuizUi.MaxAnswers ||
+                question.correctIndex < 0 || question.correctIndex >= question.answers.Length)
+                return false;
+
+            foreach (var answer in question.answers)
+                if (string.IsNullOrWhiteSpace(answer))
+                    return false;
+        }
+
+        return true;
+    }
+
+    void OnDestroy()
+    {
+        if (player != null && player.CrossingRules == this)
+            player.CrossingRules = null;
     }
 
     static Question[] BuildDefaultQuestions()
@@ -171,7 +562,7 @@ public class CrossingQuiz : MonoBehaviour
                     "Between the parked cars",
                 },
                 correctIndex = 1,
-                hint = "Not quite. Cars can come fast, so look for the white stripes.",
+                hint = "Cars can come fast. Look for the white stripes.",
             },
             new Question
             {
@@ -183,7 +574,7 @@ public class CrossingQuiz : MonoBehaviour
                     "Look at my phone",
                 },
                 correctIndex = 1,
-                hint = "Close! Before you step out, check the road both ways.",
+                hint = "Before you step out, check the road both ways.",
             },
             new Question
             {
@@ -195,7 +586,7 @@ public class CrossingQuiz : MonoBehaviour
                     "When my friend crosses first",
                 },
                 correctIndex = 0,
-                hint = "Let's stay safe and wait until the car has stopped.",
+                hint = "Stay on the sidewalk until the car has stopped.",
             },
         };
     }
