@@ -51,7 +51,7 @@ public sealed class PlaygroundStage : MonoBehaviour
         ball = world.CreateBall();
         catchSound = ball.gameObject.AddComponent<AudioSource>();
         catchSound.playOnAwake = false;
-        catchSound.volume = 0.45f;
+        catchSound.volume = 0.45f * GameAudioManager.GetSfxVolume();
         catchClip = MakeCatchClip();
 
         playmates[0] = PlaygroundChild.Create(world.transform, "Classmate waiting for a turn", "Playground/PlaygroundBuddy",
@@ -227,6 +227,7 @@ public sealed class PlaygroundStage : MonoBehaviour
         turns++;
         pads[receiverIndex].Set(true, false);
         positiveUntil = Time.unscaledTime + 1.7f;
+        catchSound.volume = 0.45f * GameAudioManager.GetSfxVolume();
         catchSound.PlayOneShot(catchClip);
 
         float held = 0f;
