@@ -2,6 +2,8 @@
 
 **[Play now in your browser](https://bblasius1.github.io/What-Should-I-Do/)**
 
+Read the project report as a [PDF](docs/what-should-i-do-project-report.pdf) or [PowerPoint](docs/what-should-i-do-project-report.pptx).
+
 A short 3D game with three everyday challenges for children. Open the link on a computer, wait for the game to load, then select **Start**. No installation or GitHub account is required.
 
 1. **Cross Safely** — Follow the sidewalk, answer the crossing questions, and reach the other side using the zebra crossing.
