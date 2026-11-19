@@ -566,7 +566,12 @@ public sealed class WelcomeMenu : MonoBehaviour
         focus.raycastTarget = true;
         var button = focus.gameObject.AddComponent<Button>();
         button.targetGraphic = focus;
-        button.onClick.AddListener(() => onClick());
+        button.onClick.AddListener(() =>
+        {
+            // On WebGL, unlock the AudioContext directly from a real menu interaction.
+            GameAudioManager.EnsureInstance().UnlockAudio();
+            onClick();
+        });
         button.colors = new ColorBlock
         {
             normalColor = Color.clear,
