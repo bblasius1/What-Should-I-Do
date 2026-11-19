@@ -29,11 +29,12 @@ FILES = [
 ]
 
 try:
-    from tree_sitter_language_pack import get_parser
+    from tree_sitter import Parser, Language
+    import tree_sitter_c_sharp
 except ImportError as exc:
-    raise SystemExit("Install syntax checker: pip install tree-sitter-language-pack") from exc
+    raise SystemExit("Install syntax checker: pip install tree-sitter tree-sitter-c-sharp") from exc
 
-parser = get_parser("c_sharp")
+parser = Parser(Language(tree_sitter_c_sharp.language()))
 failed = False
 for file_name in FILES:
     path = ROOT / file_name
