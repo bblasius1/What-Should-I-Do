@@ -21,6 +21,7 @@ public sealed class GameAudioManager : MonoBehaviour
     AudioSource sfxSource;
     AudioSource ambienceSource;
     AudioClip activeMusicClip;
+    readonly AudioClip[] uiSoundClips = new AudioClip[4];
     bool activeMusicClipGenerated;
     Coroutine musicRoutine;
     Coroutine voiceRoutine;
@@ -169,6 +170,17 @@ public sealed class GameAudioManager : MonoBehaviour
             ambienceSource.Play();
     }
 
+    internal void PlayUiSound(UiSoundCue cue)
+    {
+        if (!audioUnlocked || sfxSource == null)
+            return;
+
+        int index = (int)cue;
+        if (uiSoundClips[index] == null)
+            uiSoundClips[index] = UiSoundLibrary.Create(cue);
+        sfxSource.PlayOneShot(uiSoundClips[index]);
+    }
+
     public void PlaySfx(string resourceName)
     {
         if (!audioUnlocked || sfxSource == null || string.IsNullOrWhiteSpace(resourceName))
@@ -293,5 +305,9 @@ public sealed class GameAudioManager : MonoBehaviour
 
         if (activeMusicClip != null && activeMusicClipGenerated)
             Destroy(activeMusicClip);
+
+        foreach (AudioClip clip in uiSoundClips)
+            if (clip != null)
+                Destroy(clip);
     }
 }
