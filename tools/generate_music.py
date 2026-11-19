@@ -136,7 +136,10 @@ def render(name, bpm, progression, style):
             scale, melody, interval, amplitude, instrument = SCALES["C"], [4,2,1,0,2,4,5,4,2,1,0,1,2,4,2,0], beat, .027, "piano"
         else:
             scale, melody, interval, amplitude, instrument = SCALES["G"], [0,2,4,7,5,4,2,4,0,2,4,5,7,5,4,2], beat/2, .043, "marimba"
-        if style in ("street","school") and bar%4 == 3:
+        # Each melody spans two bars (menu/playground) or four bars (street/school).
+        # Starting one every bar layers mismatched phrases and masks dialogue.
+        phrase_bars = 4 if style in ("street", "school") else 2
+        if bar % phrase_bars != 0:
             continue
         for j, ix in enumerate(melody):
             if style in ("menu","playground") and j in (3,7,11,15):
