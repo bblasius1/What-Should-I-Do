@@ -366,6 +366,7 @@ public class CrossingQuiz : MonoBehaviour
         }
 
         LearningTracker.RecordEvent(new LearningEvent(QuestionObjective(questionIndex), LearningEventType.Completed));
+        GameAudioManager.EnsureInstance().PlayVoiceLine("Narrator", "L1_NAR_011");
         ui.ShowFeedback("That's right!", true);
         StartCoroutine(AdvanceAfterDelay());
     }
@@ -399,6 +400,7 @@ public class CrossingQuiz : MonoBehaviour
         stage = Stage.Complete;
         ResetLookChecks();
         LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.Crossing_UseZebra, LearningEventType.Completed));
+        GameAudioManager.EnsureInstance().PlayVoiceLine("Narrator", "L1_NAR_012");
         ShowLevelResult(GameLevel.Crossing, LevelProgress.StarsForMistakes(crossingMistakes));
     }
 
@@ -541,6 +543,7 @@ public class CrossingQuiz : MonoBehaviour
         questionIndex = 0;
         reminderUntil = 0f;
         stage = Stage.Approach;
+        GameAudioManager.EnsureInstance().PlayVoiceLine("Narrator", "L1_NAR_001");
         ui.SetVisible(true);
         ui.HideModal();
         player.enabled = true;
