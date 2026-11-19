@@ -132,6 +132,7 @@ public sealed class PlaygroundStage : MonoBehaviour
         else if (phase == Phase.MakeRoom && InRange(position, world.OpenSpot, StartCircleRadius))
         {
             phase = Phase.Pass;
+            LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.Playground_MakeRoom, LearningEventType.Completed));
             openPad.Set(true, false);
         }
         else if (phase == Phase.Pass && !ballInFlight)
@@ -142,6 +143,7 @@ public sealed class PlaygroundStage : MonoBehaviour
                 if (served[focusedPlayer])
                 {
                     mistakes++;
+                    LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.Playground_ShareTurns, LearningEventType.Mistake));
                     coachingUntil = Time.unscaledTime + 2.6f;
                 }
                 else
@@ -159,6 +161,7 @@ public sealed class PlaygroundStage : MonoBehaviour
     IEnumerator InviteClassmate()
     {
         phase = Phase.Joining;
+        LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.Playground_Invite, LearningEventType.Completed));
         invitePad.Show(false);
         openPad.Show(true);
         openPad.Set(false, true);
@@ -240,6 +243,7 @@ public sealed class PlaygroundStage : MonoBehaviour
         if (turns != PlaymateCount)
             yield break;
 
+        LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.Playground_ShareTurns, LearningEventType.Completed));
         phase = Phase.Complete;
         for (int index = 0; index < PlaymateCount; index++)
             pads[index].Set(true, false);
@@ -308,7 +312,9 @@ public sealed class PlaygroundStage : MonoBehaviour
         }
 
         string objective = GameLanguage.Format("{0} of {1} classmates have had a turn.", turns, PlaymateCount);
-        string hint = Time.unscaledTime < coachingUntil ? "Choose someone who is still waiting." :
+        string hint = Time.unscaledTime < coachingUntil
+            ? AdaptiveLearningManager.HintFor(LearningObjectiveId.Playground_ShareTurns,
+                "Choose someone who is still waiting.") :
             Time.unscaledTime < positiveUntil ? "Nice pass!" : "Face a classmate. Press F or gamepad X to pass.";
         ui.ShowObjective(objective, hint);
         if (focusedPlayer >= 0)
