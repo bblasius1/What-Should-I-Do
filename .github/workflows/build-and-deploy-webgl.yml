@@ -8,6 +8,7 @@ on:
       - "Assets/**"
       - "Packages/**"
       - "ProjectSettings/**"
+      - "tools/prepare_webgl_textures.py"
       - ".github/workflows/build-and-deploy-webgl.yml"
   workflow_dispatch:
 
@@ -44,6 +45,19 @@ jobs:
             exit 1
           fi
 
+      - name: Set up Python for browser texture preparation
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Resize embedded textures for the browser build
+        run: |
+          python -m pip install Pillow==13.0.0
+          python tools/prepare_webgl_textures.py --output "$RUNNER_TEMP/webgl-textures"
+          if [ -d "$RUNNER_TEMP/webgl-textures/Assets" ]; then
+            cp -a "$RUNNER_TEMP/webgl-textures/Assets/." Assets/
+          fi
+
       - name: Cache Unity import artifacts
         uses: actions/cache@v4
         with:
@@ -64,11 +78,17 @@ jobs:
           targetPlatform: WebGL
           buildName: WhatShouldIDo
           buildsPath: build
+          allowDirtyBuild: true
 
       - name: Verify the generated WebGL player
         run: |
           test -s "$WEBGL_PLAYER_DIR/index.html"
           test -d "$WEBGL_PLAYER_DIR/Build"
+          oversized=$(find "$WEBGL_PLAYER_DIR" -type f -size +104857600c -print -quit)
+          if [ -n "$oversized" ]; then
+            echo "::error::Build file exceeds GitHub’s 100 MiB limit: $oversized"
+            exit 1
+          fi
           find "$WEBGL_PLAYER_DIR" -maxdepth 2 -type f -printf '%p %s bytes\n' | sort
           if ! find "$WEBGL_PLAYER_DIR/Build" -type f \( -name '*.wasm' -o -name '*.wasm.unityweb' \) | grep -q .; then
             echo "::error::Unity WebGL build is missing its WebAssembly player."
