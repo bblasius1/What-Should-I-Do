@@ -126,12 +126,12 @@ public sealed class GameAudioManager : MonoBehaviour
         fadeMultiplier = 0f;
         yield return new WaitForSecondsRealtime(0.28f);
 
-        LoadAndStartTrack(track);
+        LoadAndStartTrack(track, true);
         fadeMultiplier = 1f;
         musicRoutine = null;
     }
 
-    void LoadAndStartTrack(GameMusicTrack track)
+    void LoadAndStartTrack(GameMusicTrack track, bool startSilent = false)
     {
         musicSource.Stop();
         musicSource.clip = null;
@@ -144,7 +144,7 @@ public sealed class GameAudioManager : MonoBehaviour
             activeMusicClip = ProceduralMusicLibrary.CreateClip(track);
         musicSource.clip = activeMusicClip;
         musicSource.loop = true;
-        musicSource.volume = musicVolume * (voiceActive ? 0.28f : 1f);
+        musicSource.volume = startSilent ? 0f : musicVolume * (voiceActive ? 0.28f : 1f);
         musicSource.Play();
 
         currentTrack = track;
