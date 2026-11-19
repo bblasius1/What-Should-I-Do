@@ -70,6 +70,7 @@ public sealed class SchoolHelpStage : MonoBehaviour
 
         player.ResetTo(yard.SpawnPoint, Quaternion.identity);
         phase = Phase.CheckStudent;
+        GameAudioManager.EnsureInstance().PlayVoiceLine("Narrator", "L2_NAR_001");
         ui.SetVisible(true);
         ui.HideModal();
         player.enabled = true;
@@ -213,6 +214,7 @@ public sealed class SchoolHelpStage : MonoBehaviour
                     LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.School_CheckStudent, LearningEventType.Completed));
                     phase = Phase.FindTeacher;
                     CloseDialogue();
+                    GameAudioManager.EnsureInstance().PlayVoiceLine("Player", "L2_PLAYER_001");
                 });
             return;
         }
@@ -359,6 +361,7 @@ public sealed class SchoolHelpStage : MonoBehaviour
             player.enabled = false;
             phase = Phase.Complete;
             LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.School_LeadTeacher, LearningEventType.Completed));
+            GameAudioManager.EnsureInstance().PlayVoiceLine("Narrator", "L2_NAR_006");
             int stars = LevelProgress.StarsForMistakes(mistakes);
             StartCoroutine(ContinueDialogue(() => completed?.Invoke(stars)));
         }
