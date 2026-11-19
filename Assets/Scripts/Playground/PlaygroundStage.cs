@@ -141,10 +141,12 @@ public sealed class PlaygroundStage : MonoBehaviour
             focusedPlayer = FindReceiver();
             if (focusedPlayer >= 0 && actionPressed)
             {
+                LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.Playground_ShareTurns, LearningEventType.Attempted));
                 if (served[focusedPlayer])
                 {
                     mistakes++;
                     LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.Playground_ShareTurns, LearningEventType.Mistake));
+                    LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.Playground_ShareTurns, LearningEventType.HintShown));
                     coachingUntil = Time.unscaledTime + 2.6f;
                 }
                 else
