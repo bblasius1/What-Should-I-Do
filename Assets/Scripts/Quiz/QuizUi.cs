@@ -218,6 +218,7 @@ public class QuizUi : MonoBehaviour
     {
         feedbackText.text = GameLanguage.Text(message);
         feedbackText.color = correct ? Teal : Warning;
+        GameAudioManager.EnsureInstance().PlayUiSound(correct ? UiSoundCue.Correct : UiSoundCue.Incorrect);
 
         if (!correct)
             return;
@@ -279,6 +280,7 @@ public class QuizUi : MonoBehaviour
         hud.SetActive(false);
         questionLayer.SetActive(false);
         winLayer.SetActive(true);
+        GameAudioManager.EnsureInstance().PlayUiSound(UiSoundCue.Completed);
         eventSystem.SetSelectedGameObject((hasNextGame ? nextGameButton : restartButton).gameObject);
     }
 
