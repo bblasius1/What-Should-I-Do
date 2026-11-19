@@ -218,6 +218,7 @@ public class QuizUi : MonoBehaviour
     {
         feedbackText.text = GameLanguage.Text(message);
         feedbackText.color = correct ? Teal : Warning;
+        GameAudioManager.EnsureInstance().PlayUiSound(correct ? UiSoundCue.Correct : UiSoundCue.Incorrect);
 
         if (!correct)
             return;
@@ -258,7 +259,9 @@ public class QuizUi : MonoBehaviour
         mainMenuCallback = onMainMenu;
         nextGameCallback = onNextGame;
         resultTitle.text = GameLanguage.Text(title);
-        resultSummary.text = GameLanguage.Text(summary);
+        resultSummary.text = GameLanguage.Text(summary) + "\n" +
+            GameLanguage.Format("Learning progress {0}/{1}",
+                LearningTracker.CompletedCount(level), LearningTracker.ObjectiveCount(level));
         resultStars.text = LevelProgress.Icons(stars);
         resultRating.text = GameLanguage.Format("Stars earned {0}/3", stars) + "   ·   " +
             GameLanguage.Format("Best {0}/3", best);
@@ -277,6 +280,7 @@ public class QuizUi : MonoBehaviour
         hud.SetActive(false);
         questionLayer.SetActive(false);
         winLayer.SetActive(true);
+        GameAudioManager.EnsureInstance().PlayUiSound(UiSoundCue.Completed);
         eventSystem.SetSelectedGameObject((hasNextGame ? nextGameButton : restartButton).gameObject);
     }
 

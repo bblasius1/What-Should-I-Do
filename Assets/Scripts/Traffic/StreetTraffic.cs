@@ -20,6 +20,18 @@ public sealed class StreetTraffic : MonoBehaviour
     readonly List<Lane> lanes = new List<Lane>(2);
     CrossingQuiz crossing;
     AudioClip engineLoop;
+    bool trafficAudioEnabled;
+
+    internal void SetTrafficAudioEnabled(bool enabled)
+    {
+        trafficAudioEnabled = enabled;
+        if (enabled)
+            return;
+
+        foreach (Lane lane in lanes)
+            foreach (Vehicle vehicle in lane.Vehicles)
+                vehicle.Engine.Stop();
+    }
 
     internal void Initialize(CrossingQuiz quiz, Bounds road)
     {
@@ -206,7 +218,17 @@ public sealed class StreetTraffic : MonoBehaviour
                 lane.Place(vehicle.Transform, vehicle.Distance);
                 float speedFraction = vehicle.Speed / vehicle.CruiseSpeed;
                 vehicle.Engine.pitch = Mathf.Lerp(0.82f, 1.18f, speedFraction) * (vehicle.CruiseSpeed / CruiseSpeeds[0]);
-                vehicle.Engine.volume = Mathf.Lerp(0.035f, 0.15f, speedFraction) * vehicle.Transform.localScale.x;
+                vehicle.Engine.volume = Mathf.Lerp(0.035f, 0.15f, speedFraction) *
+                    vehicle.Transform.localScale.x * GameAudioManager.GetSfxVolume();
+
+                // Traffic objects are created on the initial welcome screen, before
+                // browser audio is unlocked. Start their loop after the first click.
+                bool audible = trafficAudioEnabled && GameAudioManager.Instance != null &&
+                    GameAudioManager.Instance.IsAudioUnlocked;
+                if (audible && !vehicle.Engine.isPlaying)
+                    vehicle.Engine.Play();
+                else if (!audible && vehicle.Engine.isPlaying)
+                    vehicle.Engine.Stop();
             }
         }
     }
@@ -222,9 +244,9 @@ public sealed class StreetTraffic : MonoBehaviour
         engine.rolloffMode = AudioRolloffMode.Linear;
         engine.minDistance = 2f;
         engine.maxDistance = 25f;
-        engine.volume = 0.11f;
+        engine.volume = 0.11f * GameAudioManager.GetSfxVolume();
         engine.timeSamples = vehicle.GetSiblingIndex() * engineLoop.samples / (Fleet.Length * 2);
-        engine.Play();
+        // Start only after the first menu interaction and when Street is active.
         return engine;
     }
 

@@ -29,6 +29,7 @@ public sealed class WelcomeMenu : MonoBehaviour
     GameObject canvasObject;
     RectTransform welcomePanel;
     RectTransform settingsPanel;
+    RectTransform audioPanel;
     RectTransform levelsPanel;
     readonly List<(Text Label, string Source, bool Bold, bool Native)> labels = new();
     readonly Button[] levelButtons = new Button[3];
@@ -41,8 +42,11 @@ public sealed class WelcomeMenu : MonoBehaviour
     Text startLabel;
     Button startButton;
     Button settingsButton;
+    Button audioButton;
+    Button audioBack;
     Button[] welcomeOrder;
     Button[] settingsOrder;
+    Slider[] audioSliders;
     Option boy;
     Option girl;
     Option smooth;
@@ -84,7 +88,11 @@ public sealed class WelcomeMenu : MonoBehaviour
         ShowWelcome(startButton);
     }
 
-    void Play() => onPlay?.Invoke(LevelProgress.FirstUnfinished() ?? GameLevel.Crossing);
+    void Play()
+    {
+        GameAudioManager.EnsureInstance().UnlockAudio();
+        onPlay?.Invoke(LevelProgress.FirstUnfinished() ?? GameLevel.Crossing);
+    }
 
     internal void HideForPlay()
     {
@@ -96,7 +104,10 @@ public sealed class WelcomeMenu : MonoBehaviour
     void OpenLevel(GameLevel level)
     {
         if (LevelProgress.Best(level) > 0)
+        {
+            GameAudioManager.EnsureInstance().UnlockAudio();
             onPlay?.Invoke(level);
+        }
     }
 
     void Update()
@@ -106,23 +117,32 @@ public sealed class WelcomeMenu : MonoBehaviour
 
         var keyboard = Keyboard.current;
         var gamepad = Gamepad.current;
+        bool inAudio = audioPanel.gameObject.activeSelf;
         bool inSettings = settingsPanel.gameObject.activeSelf;
         bool inLevels = levelsPanel.gameObject.activeSelf;
         if (eventSystem != null && eventSystem.currentSelectedGameObject == null)
         {
-            Button defaultButton = inSettings ? (reduceMotion ? reduced : smooth).Button : inLevels ? FirstLevelFocus() : startButton;
+            Button defaultButton = inAudio ? audioBack : inSettings ? (reduceMotion ? reduced : smooth).Button : inLevels ? FirstLevelFocus() : startButton;
             eventSystem.SetSelectedGameObject(defaultButton.gameObject);
         }
 
-        if ((inSettings || inLevels) && ((keyboard != null && keyboard.escapeKey.wasPressedThisFrame) ||
+        if ((inSettings || inLevels || inAudio) && ((keyboard != null && keyboard.escapeKey.wasPressedThisFrame) ||
                            (gamepad != null && gamepad.buttonEast.wasPressedThisFrame)))
         {
-            ShowWelcome(inLevels ? levelsButton : settingsButton);
+            if (inAudio)
+                ShowSettings();
+            else
+                ShowWelcome(inLevels ? levelsButton : settingsButton);
             return;
         }
 
         if (keyboard != null && keyboard.tabKey.wasPressedThisFrame)
-            CycleFocus(inSettings ? settingsOrder : inLevels ? levelsOrder : welcomeOrder, keyboard.shiftKey.isPressed);
+        {
+            if (inAudio)
+                CycleFocusAudio(keyboard.shiftKey.isPressed);
+            else
+                CycleFocus(inSettings ? settingsOrder : inLevels ? levelsOrder : welcomeOrder, keyboard.shiftKey.isPressed);
+        }
     }
 
     void CycleFocus(Button[] order, bool backward)
@@ -143,8 +163,20 @@ public sealed class WelcomeMenu : MonoBehaviour
         }
     }
 
+    void CycleFocusAudio(bool backward)
+    {
+        if (eventSystem == null)
+            return;
+
+        var items = new Selectable[] { audioSliders[0], audioSliders[1], audioSliders[2], audioSliders[3], audioBack };
+        int index = Array.FindIndex(items, item => item.gameObject == eventSystem.currentSelectedGameObject);
+        index = (index + (backward ? items.Length - 1 : 1)) % items.Length;
+        eventSystem.SetSelectedGameObject(items[index].gameObject);
+    }
+
     void ShowWelcome(Button focus)
     {
+        audioPanel.gameObject.SetActive(false);
         settingsPanel.gameObject.SetActive(false);
         levelsPanel.gameObject.SetActive(false);
         welcomePanel.gameObject.SetActive(true);
@@ -155,8 +187,18 @@ public sealed class WelcomeMenu : MonoBehaviour
     {
         welcomePanel.gameObject.SetActive(false);
         levelsPanel.gameObject.SetActive(false);
+        audioPanel.gameObject.SetActive(false);
         settingsPanel.gameObject.SetActive(true);
         eventSystem?.SetSelectedGameObject((reduceMotion ? reduced : smooth).Button.gameObject);
+    }
+
+    void ShowAudioSettings()
+    {
+        welcomePanel.gameObject.SetActive(false);
+        levelsPanel.gameObject.SetActive(false);
+        settingsPanel.gameObject.SetActive(false);
+        audioPanel.gameObject.SetActive(true);
+        eventSystem?.SetSelectedGameObject(audioSliders[0].gameObject);
     }
 
     void ShowLevels()
@@ -164,6 +206,7 @@ public sealed class WelcomeMenu : MonoBehaviour
         RefreshProgress();
         welcomePanel.gameObject.SetActive(false);
         settingsPanel.gameObject.SetActive(false);
+        audioPanel.gameObject.SetActive(false);
         levelsPanel.gameObject.SetActive(true);
         eventSystem?.SetSelectedGameObject(FirstLevelFocus().gameObject);
     }
@@ -289,13 +332,16 @@ public sealed class WelcomeMenu : MonoBehaviour
         SetPanelPosition(shadow, 8f);
         welcomePanel = Plate("Welcome", canvasRect, Ink).rectTransform;
         settingsPanel = Plate("Settings panel", canvasRect, Ink).rectTransform;
+        audioPanel = Plate("Audio panel", canvasRect, Ink).rectTransform;
         levelsPanel = Plate("Levels panel", canvasRect, Ink).rectTransform;
         SetPanelPosition(welcomePanel, 0f);
         SetPanelPosition(settingsPanel, 0f);
+        SetPanelPosition(audioPanel, 0f);
         SetPanelPosition(levelsPanel, 0f);
 
         BuildWelcome();
         BuildSettings();
+        BuildAudioSettings();
         BuildLevels();
         GameLanguage.Changed += RefreshLanguage;
         RefreshLanguage();
@@ -359,16 +405,82 @@ public sealed class WelcomeMenu : MonoBehaviour
 
         Button back = MakeTextButton("Back", settingsPanel, 44f, 606f, 273f, Yellow, Ink, 34,
             () => ShowWelcome(settingsButton));
+        audioButton = MakeTextButton("Audio", settingsPanel, 343f, 606f, 273f, Leaf, Paper, 34,
+            ShowAudioSettings);
         settingsOrder = new[] { smooth.Button, reduced.Button, windowed.Button, fullscreen.Button,
-            english.Button, chinese.Button, back };
+            english.Button, chinese.Button, back, audioButton };
 
         Link(smooth.Button, null, reduced.Button, null, windowed.Button);
         Link(reduced.Button, smooth.Button, null, null, fullscreen.Button);
         Link(windowed.Button, null, fullscreen.Button, smooth.Button, english.Button);
         Link(fullscreen.Button, windowed.Button, null, reduced.Button, chinese.Button);
         Link(english.Button, null, chinese.Button, windowed.Button, back);
-        Link(chinese.Button, english.Button, null, fullscreen.Button, back);
-        Link(back, null, null, english.Button, null);
+        Link(chinese.Button, english.Button, null, fullscreen.Button, audioButton);
+        Link(back, null, audioButton, english.Button, null);
+        Link(audioButton, back, null, chinese.Button, null);
+    }
+
+    void BuildAudioSettings()
+    {
+        AddCrosswalkMark(audioPanel);
+        Put(Label("Audio title", audioPanel, "Audio", 65, Paper, true,
+            TextAnchor.MiddleLeft).rectTransform, 44f, 115f, 572f, 75f);
+
+        audioSliders = new Slider[4];
+        audioSliders[0] = MakeVolumeSlider("Music volume", 210f,
+            GameAudioManager.GetMusicVolume(), GameAudioManager.SetMusicVolume);
+        audioSliders[1] = MakeVolumeSlider("Sound effects volume", 305f,
+            GameAudioManager.GetSfxVolume(), GameAudioManager.SetSfxVolume);
+        audioSliders[2] = MakeVolumeSlider("Voice volume", 400f,
+            PlayerPrefs.GetFloat("wsid.audio.voice", 0.95f), GameAudioManager.SetVoiceVolume);
+        audioSliders[3] = MakeVolumeSlider("Ambience volume", 495f,
+            PlayerPrefs.GetFloat("wsid.audio.ambience", 0.24f), GameAudioManager.SetAmbienceVolume);
+
+        audioBack = MakeTextButton("Back", audioPanel, 44f, 606f, 273f, Yellow, Ink, 34, ShowSettings);
+        for (int i = 0; i < audioSliders.Length; i++)
+        {
+            audioSliders[i].navigation = new Navigation
+            {
+                mode = Navigation.Mode.Explicit,
+                selectOnUp = i == 0 ? audioBack : audioSliders[i - 1],
+                selectOnDown = i == audioSliders.Length - 1 ? audioBack : audioSliders[i + 1],
+            };
+        }
+        Link(audioBack, null, null, audioSliders[3], audioSliders[0]);
+    }
+
+    Slider MakeVolumeSlider(string label, float y, float initial, Action<float> onChanged)
+    {
+        Put(Label(label, audioPanel, label, 27, Paper, true,
+            TextAnchor.MiddleLeft).rectTransform, 48f, y, 568f, 34f);
+
+        var backdrop = Plate(label + " bar", audioPanel, Leaf);
+        backdrop.raycastTarget = true;
+        Put(backdrop.rectTransform, 48f, y + 39f, 548f, 27f);
+        var fill = Plate("Current volume", backdrop.transform, Mint);
+        fill.type = Image.Type.Simple;
+        var fillRect = fill.rectTransform;
+        fillRect.anchorMin = new Vector2(0f, 0f);
+        fillRect.anchorMax = new Vector2(1f, 1f);
+        fillRect.offsetMin = Vector2.zero;
+        fillRect.offsetMax = Vector2.zero;
+
+        var handle = Plate("Volume handle", backdrop.transform, Yellow);
+        handle.type = Image.Type.Simple;
+        var handleRect = handle.rectTransform;
+        handleRect.anchorMin = handleRect.anchorMax = new Vector2(0.5f, 0.5f);
+        handleRect.sizeDelta = new Vector2(25f, 40f);
+
+        var slider = backdrop.gameObject.AddComponent<Slider>();
+        slider.targetGraphic = handle;
+        slider.fillRect = fillRect;
+        slider.handleRect = handleRect;
+        slider.minValue = 0f;
+        slider.maxValue = 1f;
+        slider.wholeNumbers = false;
+        slider.value = Mathf.Clamp01(initial);
+        slider.onValueChanged.AddListener(value => onChanged(value));
+        return slider;
     }
 
     void BuildLevels()
@@ -454,7 +566,14 @@ public sealed class WelcomeMenu : MonoBehaviour
         focus.raycastTarget = true;
         var button = focus.gameObject.AddComponent<Button>();
         button.targetGraphic = focus;
-        button.onClick.AddListener(() => onClick());
+        button.onClick.AddListener(() =>
+        {
+            // On WebGL, unlock the AudioContext directly from a real menu interaction.
+            GameAudioManager audio = GameAudioManager.EnsureInstance();
+            audio.UnlockAudio();
+            audio.PlayUiSound(UiSoundCue.Click);
+            onClick();
+        });
         button.colors = new ColorBlock
         {
             normalColor = Color.clear,

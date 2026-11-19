@@ -70,6 +70,7 @@ public sealed class SchoolHelpStage : MonoBehaviour
 
         player.ResetTo(yard.SpawnPoint, Quaternion.identity);
         phase = Phase.CheckStudent;
+        GameAudioManager.EnsureInstance().PlayVoiceLine("Narrator", "L2_NAR_001");
         ui.SetVisible(true);
         ui.HideModal();
         player.enabled = true;
@@ -210,8 +211,10 @@ public sealed class SchoolHelpStage : MonoBehaviour
                 _ =>
                 {
                     student.SetCalling(false);
+                    LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.School_CheckStudent, LearningEventType.Completed));
                     phase = Phase.FindTeacher;
                     CloseDialogue();
+                    GameAudioManager.EnsureInstance().PlayVoiceLine("Player", "L2_PLAYER_001");
                 });
             return;
         }
@@ -239,13 +242,18 @@ public sealed class SchoolHelpStage : MonoBehaviour
         phase = Phase.ReportIncident;
         ShowDialogue("Teacher on duty", "What happened to the student?", IncidentAnswers, answer =>
         {
+            LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.School_ReportIncident, LearningEventType.Attempted));
             if (answer != 1)
             {
                 mistakes++;
-                ui.ShowFeedback("Think about what the student said by the bench.", false);
+                LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.School_ReportIncident, LearningEventType.Mistake));
+                LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.School_ReportIncident, LearningEventType.HintShown));
+                ui.ShowFeedback(AdaptiveLearningManager.HintFor(LearningObjectiveId.School_ReportIncident,
+                    "Think about what the student said by the bench."), false);
                 return;
             }
 
+            LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.School_ReportIncident, LearningEventType.Completed));
             ui.ShowFeedback("Now I know what happened.", true);
             StartCoroutine(ContinueDialogue(AskLocation));
         });
@@ -256,13 +264,18 @@ public sealed class SchoolHelpStage : MonoBehaviour
         phase = Phase.ReportLocation;
         ShowDialogue("Teacher on duty", "Where did they fall?", LocationAnswers, answer =>
         {
+            LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.School_ReportLocation, LearningEventType.Attempted));
             if (answer != 2)
             {
                 mistakes++;
-                ui.ShowFeedback("Name the landmark beside the student so I know where to go.", false);
+                LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.School_ReportLocation, LearningEventType.Mistake));
+                LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.School_ReportLocation, LearningEventType.HintShown));
+                ui.ShowFeedback(AdaptiveLearningManager.HintFor(LearningObjectiveId.School_ReportLocation,
+                    "Name the landmark beside the student so I know where to go."), false);
                 return;
             }
 
+            LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.School_ReportLocation, LearningEventType.Completed));
             ui.ShowFeedback("The bench by the front gate. I’ll come with you.", true);
             StartCoroutine(ContinueDialogue(StartEscort));
         });
@@ -278,6 +291,7 @@ public sealed class SchoolHelpStage : MonoBehaviour
     {
         inDialogue = true;
         player.enabled = false;
+        GameAudioManager.EnsureInstance().PlayDialogueFor(heading, prompt);
         ui.ShowDialogue(heading, prompt, choices, onAnswer);
     }
 
@@ -285,6 +299,7 @@ public sealed class SchoolHelpStage : MonoBehaviour
     {
         inDialogue = false;
         conversationPartner = null;
+        GameAudioManager.EnsureInstance().StopVoice();
         ui.HideModal();
         player.enabled = true;
     }
@@ -292,6 +307,7 @@ public sealed class SchoolHelpStage : MonoBehaviour
     void StartEscort()
     {
         phase = Phase.LeadTeacher;
+        LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.School_FindTeacher, LearningEventType.Completed));
         trail.Clear();
         lastTrailPoint = player.transform.position;
         trail.Enqueue(lastTrailPoint);
@@ -348,6 +364,8 @@ public sealed class SchoolHelpStage : MonoBehaviour
             teacher.SetWalking(false);
             player.enabled = false;
             phase = Phase.Complete;
+            LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.School_LeadTeacher, LearningEventType.Completed));
+            GameAudioManager.EnsureInstance().PlayVoiceLine("Narrator", "L2_NAR_006");
             int stars = LevelProgress.StarsForMistakes(mistakes);
             StartCoroutine(ContinueDialogue(() => completed?.Invoke(stars)));
         }

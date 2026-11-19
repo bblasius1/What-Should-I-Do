@@ -51,7 +51,7 @@ public sealed class PlaygroundStage : MonoBehaviour
         ball = world.CreateBall();
         catchSound = ball.gameObject.AddComponent<AudioSource>();
         catchSound.playOnAwake = false;
-        catchSound.volume = 0.45f;
+        catchSound.volume = 0.45f * GameAudioManager.GetSfxVolume();
         catchClip = MakeCatchClip();
 
         playmates[0] = PlaygroundChild.Create(world.transform, "Classmate waiting for a turn", "Playground/PlaygroundBuddy",
@@ -76,6 +76,7 @@ public sealed class PlaygroundStage : MonoBehaviour
         ui.HideModal();
         player.enabled = true;
         phase = Phase.Invite;
+        GameAudioManager.EnsureInstance().PlayVoiceLine("Narrator", "L3_NAR_001");
         UpdateBallAtPlayer();
     }
 
@@ -132,6 +133,7 @@ public sealed class PlaygroundStage : MonoBehaviour
         else if (phase == Phase.MakeRoom && InRange(position, world.OpenSpot, StartCircleRadius))
         {
             phase = Phase.Pass;
+            LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.Playground_MakeRoom, LearningEventType.Completed));
             openPad.Set(true, false);
         }
         else if (phase == Phase.Pass && !ballInFlight)
@@ -139,9 +141,12 @@ public sealed class PlaygroundStage : MonoBehaviour
             focusedPlayer = FindReceiver();
             if (focusedPlayer >= 0 && actionPressed)
             {
+                LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.Playground_ShareTurns, LearningEventType.Attempted));
                 if (served[focusedPlayer])
                 {
                     mistakes++;
+                    LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.Playground_ShareTurns, LearningEventType.Mistake));
+                    LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.Playground_ShareTurns, LearningEventType.HintShown));
                     coachingUntil = Time.unscaledTime + 2.6f;
                 }
                 else
@@ -159,6 +164,8 @@ public sealed class PlaygroundStage : MonoBehaviour
     IEnumerator InviteClassmate()
     {
         phase = Phase.Joining;
+        LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.Playground_Invite, LearningEventType.Completed));
+        GameAudioManager.EnsureInstance().PlayVoiceLine("NewFriend", "L3_FRIEND_003");
         invitePad.Show(false);
         openPad.Show(true);
         openPad.Set(false, true);
@@ -222,6 +229,7 @@ public sealed class PlaygroundStage : MonoBehaviour
         turns++;
         pads[receiverIndex].Set(true, false);
         positiveUntil = Time.unscaledTime + 1.7f;
+        catchSound.volume = 0.45f * GameAudioManager.GetSfxVolume();
         catchSound.PlayOneShot(catchClip);
 
         float held = 0f;
@@ -240,7 +248,9 @@ public sealed class PlaygroundStage : MonoBehaviour
         if (turns != PlaymateCount)
             yield break;
 
+        LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.Playground_ShareTurns, LearningEventType.Completed));
         phase = Phase.Complete;
+        GameAudioManager.EnsureInstance().PlayVoiceLine("Narrator", "L3_NAR_008");
         for (int index = 0; index < PlaymateCount; index++)
             pads[index].Set(true, false);
         player.enabled = false;
@@ -308,7 +318,9 @@ public sealed class PlaygroundStage : MonoBehaviour
         }
 
         string objective = GameLanguage.Format("{0} of {1} classmates have had a turn.", turns, PlaymateCount);
-        string hint = Time.unscaledTime < coachingUntil ? "Choose someone who is still waiting." :
+        string hint = Time.unscaledTime < coachingUntil
+            ? AdaptiveLearningManager.HintFor(LearningObjectiveId.Playground_ShareTurns,
+                "Choose someone who is still waiting.") :
             Time.unscaledTime < positiveUntil ? "Nice pass!" : "Face a classmate. Press F or gamepad X to pass.";
         ui.ShowObjective(objective, hint);
         if (focusedPlayer >= 0)
