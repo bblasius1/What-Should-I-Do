@@ -417,6 +417,7 @@ public class CrossingQuiz : MonoBehaviour
         school?.Stop();
         playground?.Stop();
         welcome.HideForPlay();
+        GameAudioManager.EnsureInstance().StopVoice();
         GameAudioManager.EnsureInstance().PlayMusic(level switch
         {
             GameLevel.Crossing => GameMusicTrack.Street,
@@ -519,6 +520,7 @@ public class CrossingQuiz : MonoBehaviour
         ResetLookChecks();
         player.enabled = false;
         player.ResetTo(startPosition, startRotation);
+        GameAudioManager.EnsureInstance().StopVoice();
         ui.HideModal();
         ui.SetVisible(false);
         welcome.Show();
