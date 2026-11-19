@@ -14,6 +14,8 @@ public sealed class GameAudioManager : MonoBehaviour
 
     public static GameAudioManager Instance { get; private set; }
 
+    public bool IsAudioUnlocked => audioUnlocked;
+
     AudioSource musicSource;
     AudioSource voiceSource;
     AudioSource sfxSource;
@@ -97,7 +99,11 @@ public sealed class GameAudioManager : MonoBehaviour
             return;
 
         audioUnlocked = true;
-        PlayMusic(pendingTrack);
+        // The first Play must happen synchronously inside the click/key interaction.
+        // Waiting for a coroutine can lose the browser's user-activation window.
+        LoadAndStartTrack(pendingTrack);
+        if (ambienceSource.clip != null && !ambienceSource.isPlaying)
+            ambienceSource.Play();
     }
 
     public void PlayMusic(GameMusicTrack track)
@@ -120,7 +126,15 @@ public sealed class GameAudioManager : MonoBehaviour
         fadeMultiplier = 0f;
         yield return new WaitForSecondsRealtime(0.28f);
 
+        LoadAndStartTrack(track);
+        fadeMultiplier = 1f;
+        musicRoutine = null;
+    }
+
+    void LoadAndStartTrack(GameMusicTrack track)
+    {
         musicSource.Stop();
+        musicSource.clip = null;
         if (activeMusicClip != null && activeMusicClipGenerated)
             Destroy(activeMusicClip);
 
@@ -130,12 +144,11 @@ public sealed class GameAudioManager : MonoBehaviour
             activeMusicClip = ProceduralMusicLibrary.CreateClip(track);
         musicSource.clip = activeMusicClip;
         musicSource.loop = true;
+        musicSource.volume = musicVolume * (voiceActive ? 0.28f : 1f);
         musicSource.Play();
 
         currentTrack = track;
         hasCurrentTrack = true;
-        fadeMultiplier = 1f;
-        musicRoutine = null;
     }
 
     public void PlayAmbience(string resourceName)
