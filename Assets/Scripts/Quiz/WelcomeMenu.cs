@@ -569,7 +569,9 @@ public sealed class WelcomeMenu : MonoBehaviour
         button.onClick.AddListener(() =>
         {
             // On WebGL, unlock the AudioContext directly from a real menu interaction.
-            GameAudioManager.EnsureInstance().UnlockAudio();
+            GameAudioManager audio = GameAudioManager.EnsureInstance();
+            audio.UnlockAudio();
+            audio.PlayUiSound(UiSoundCue.Click);
             onClick();
         });
         button.colors = new ColorBlock
