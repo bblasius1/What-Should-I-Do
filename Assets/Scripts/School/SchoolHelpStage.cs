@@ -242,10 +242,12 @@ public sealed class SchoolHelpStage : MonoBehaviour
         phase = Phase.ReportIncident;
         ShowDialogue("Teacher on duty", "What happened to the student?", IncidentAnswers, answer =>
         {
+            LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.School_ReportIncident, LearningEventType.Attempted));
             if (answer != 1)
             {
                 mistakes++;
                 LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.School_ReportIncident, LearningEventType.Mistake));
+                LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.School_ReportIncident, LearningEventType.HintShown));
                 ui.ShowFeedback(AdaptiveLearningManager.HintFor(LearningObjectiveId.School_ReportIncident,
                     "Think about what the student said by the bench."), false);
                 return;
@@ -262,10 +264,12 @@ public sealed class SchoolHelpStage : MonoBehaviour
         phase = Phase.ReportLocation;
         ShowDialogue("Teacher on duty", "Where did they fall?", LocationAnswers, answer =>
         {
+            LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.School_ReportLocation, LearningEventType.Attempted));
             if (answer != 2)
             {
                 mistakes++;
                 LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.School_ReportLocation, LearningEventType.Mistake));
+                LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.School_ReportLocation, LearningEventType.HintShown));
                 ui.ShowFeedback(AdaptiveLearningManager.HintFor(LearningObjectiveId.School_ReportLocation,
                     "Name the landmark beside the student so I know where to go."), false);
                 return;
