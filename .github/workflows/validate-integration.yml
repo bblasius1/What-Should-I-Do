@@ -1,0 +1,31 @@
+name: Validate audio and adaptive-learning integration
+
+on:
+  push:
+    branches:
+      - feature/audio-adaptive-learning
+    paths:
+      - "Assets/Scripts/**"
+      - "Assets/Resources/Audio/Music/**"
+      - "tools/validate_integration.py"
+      - ".github/workflows/validate-integration.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install validation dependencies
+        run: |
+          python -m pip install tree-sitter-language-pack
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Check C# syntax and music files
+        run: python tools/validate_integration.py
