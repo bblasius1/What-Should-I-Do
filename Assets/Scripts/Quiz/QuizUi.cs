@@ -258,7 +258,9 @@ public class QuizUi : MonoBehaviour
         mainMenuCallback = onMainMenu;
         nextGameCallback = onNextGame;
         resultTitle.text = GameLanguage.Text(title);
-        resultSummary.text = GameLanguage.Text(summary);
+        resultSummary.text = GameLanguage.Text(summary) + "\n" +
+            GameLanguage.Format("Learning progress {0}/{1}",
+                LearningTracker.CompletedCount(level), LearningTracker.ObjectiveCount(level));
         resultStars.text = LevelProgress.Icons(stars);
         resultRating.text = GameLanguage.Format("Stars earned {0}/3", stars) + "   ·   " +
             GameLanguage.Format("Best {0}/3", best);
