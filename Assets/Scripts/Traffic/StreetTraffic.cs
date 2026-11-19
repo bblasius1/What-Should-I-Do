@@ -20,6 +20,18 @@ public sealed class StreetTraffic : MonoBehaviour
     readonly List<Lane> lanes = new List<Lane>(2);
     CrossingQuiz crossing;
     AudioClip engineLoop;
+    bool trafficAudioEnabled;
+
+    internal void SetTrafficAudioEnabled(bool enabled)
+    {
+        trafficAudioEnabled = enabled;
+        if (enabled)
+            return;
+
+        foreach (Lane lane in lanes)
+            foreach (Vehicle vehicle in lane.Vehicles)
+                vehicle.Engine.Stop();
+    }
 
     internal void Initialize(CrossingQuiz quiz, Bounds road)
     {
@@ -211,9 +223,12 @@ public sealed class StreetTraffic : MonoBehaviour
 
                 // Traffic objects are created on the initial welcome screen, before
                 // browser audio is unlocked. Start their loop after the first click.
-                if (GameAudioManager.Instance != null && GameAudioManager.Instance.IsAudioUnlocked &&
-                    !vehicle.Engine.isPlaying)
+                bool audible = trafficAudioEnabled && GameAudioManager.Instance != null &&
+                    GameAudioManager.Instance.IsAudioUnlocked;
+                if (audible && !vehicle.Engine.isPlaying)
                     vehicle.Engine.Play();
+                else if (!audible && vehicle.Engine.isPlaying)
+                    vehicle.Engine.Stop();
             }
         }
     }
@@ -231,8 +246,7 @@ public sealed class StreetTraffic : MonoBehaviour
         engine.maxDistance = 25f;
         engine.volume = 0.11f * GameAudioManager.GetSfxVolume();
         engine.timeSamples = vehicle.GetSiblingIndex() * engineLoop.samples / (Fleet.Length * 2);
-        if (GameAudioManager.Instance != null && GameAudioManager.Instance.IsAudioUnlocked)
-            engine.Play();
+        // Start only after the first menu interaction and when Street is active.
         return engine;
     }
 
