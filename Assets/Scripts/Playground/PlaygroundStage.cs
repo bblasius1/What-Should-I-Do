@@ -76,6 +76,7 @@ public sealed class PlaygroundStage : MonoBehaviour
         ui.HideModal();
         player.enabled = true;
         phase = Phase.Invite;
+        GameAudioManager.EnsureInstance().PlayVoiceLine("Narrator", "L3_NAR_001");
         UpdateBallAtPlayer();
     }
 
@@ -162,6 +163,7 @@ public sealed class PlaygroundStage : MonoBehaviour
     {
         phase = Phase.Joining;
         LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.Playground_Invite, LearningEventType.Completed));
+        GameAudioManager.EnsureInstance().PlayVoiceLine("NewFriend", "L3_FRIEND_003");
         invitePad.Show(false);
         openPad.Show(true);
         openPad.Set(false, true);
@@ -245,6 +247,7 @@ public sealed class PlaygroundStage : MonoBehaviour
 
         LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.Playground_ShareTurns, LearningEventType.Completed));
         phase = Phase.Complete;
+        GameAudioManager.EnsureInstance().PlayVoiceLine("Narrator", "L3_NAR_008");
         for (int index = 0; index < PlaymateCount; index++)
             pads[index].Set(true, false);
         player.enabled = false;
