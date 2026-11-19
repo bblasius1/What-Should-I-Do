@@ -354,12 +354,14 @@ public class CrossingQuiz : MonoBehaviour
 
     void OnAnswer(int choice)
     {
+        LearningTracker.RecordEvent(new LearningEvent(QuestionObjective(questionIndex), LearningEventType.Attempted));
         var question = questions[questionIndex];
         if (choice != question.correctIndex)
         {
             crossingMistakes++;
             LearningObjectiveId objective = QuestionObjective(questionIndex);
             LearningTracker.RecordEvent(new LearningEvent(objective, LearningEventType.Mistake));
+            LearningTracker.RecordEvent(new LearningEvent(objective, LearningEventType.HintShown));
             ui.ShowFeedback(AdaptiveLearningManager.HintFor(objective,
                 string.IsNullOrWhiteSpace(question.hint) ? "Try another answer." : question.hint), false);
             return;
