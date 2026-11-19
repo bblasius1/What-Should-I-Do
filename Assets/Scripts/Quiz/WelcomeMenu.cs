@@ -455,6 +455,7 @@ public sealed class WelcomeMenu : MonoBehaviour
             TextAnchor.MiddleLeft).rectTransform, 48f, y, 568f, 34f);
 
         var backdrop = Plate(label + " bar", audioPanel, Leaf);
+        backdrop.raycastTarget = true;
         Put(backdrop.rectTransform, 48f, y + 39f, 548f, 27f);
         var fill = Plate("Current volume", backdrop.transform, Mint);
         fill.type = Image.Type.Simple;
