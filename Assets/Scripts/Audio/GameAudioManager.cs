@@ -19,6 +19,7 @@ public sealed class GameAudioManager : MonoBehaviour
     AudioSource sfxSource;
     AudioSource ambienceSource;
     AudioClip activeMusicClip;
+    bool activeMusicClipGenerated;
     Coroutine musicRoutine;
     Coroutine voiceRoutine;
     GameMusicTrack pendingTrack = GameMusicTrack.MainMenu;
@@ -120,10 +121,13 @@ public sealed class GameAudioManager : MonoBehaviour
         yield return new WaitForSecondsRealtime(0.28f);
 
         musicSource.Stop();
-        if (activeMusicClip != null)
+        if (activeMusicClip != null && activeMusicClipGenerated)
             Destroy(activeMusicClip);
 
-        activeMusicClip = ProceduralMusicLibrary.CreateClip(track);
+        activeMusicClip = Resources.Load<AudioClip>("Audio/Music/BGM_" + track);
+        activeMusicClipGenerated = activeMusicClip == null;
+        if (activeMusicClipGenerated)
+            activeMusicClip = ProceduralMusicLibrary.CreateClip(track);
         musicSource.clip = activeMusicClip;
         musicSource.loop = true;
         musicSource.Play();
@@ -274,7 +278,7 @@ public sealed class GameAudioManager : MonoBehaviour
         if (Instance == this)
             Instance = null;
 
-        if (activeMusicClip != null)
+        if (activeMusicClip != null && activeMusicClipGenerated)
             Destroy(activeMusicClip);
     }
 }
