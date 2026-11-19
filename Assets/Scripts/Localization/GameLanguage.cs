@@ -75,6 +75,26 @@ public static class GameLanguage
 
     static readonly Dictionary<string, string> Chinese = new Dictionary<string, string>(StringComparer.Ordinal)
     {
+        // Audio settings and adaptive feedback
+        ["Audio"] = "音频",
+        ["Music volume"] = "音乐音量",
+        ["Sound effects volume"] = "音效音量",
+        ["Voice volume"] = "语音音量",
+        ["Ambience volume"] = "环境音量",
+        ["Learning progress {0}/{1}"] = "学习进度 {0}/{1}",
+        ["Take your time and think about the clue."] = "别着急，仔细想想提示。",
+        ["Look for the white stripes. They show where people should cross."] = "寻找斑马线的白色条纹，它们标明了安全通行的位置。",
+        ["Stop at the edge, look both ways, and listen before crossing."] = "在路边停下，先左右观察并仔细听，再决定是否通行。",
+        ["Wait until approaching vehicles have stopped or the road is clear."] = "等待来车停稳，或确认道路安全后再通过。",
+        ["Listen to your classmate and check whether they need an adult's help."] = "仔细听同学说话，确认是否需要大人帮助。",
+        ["Look for the teacher near the school office."] = "去学校办公室附近找老师。",
+        ["Listen to the student's words and choose the matching incident."] = "回想同学说的话，选择对应的事件。",
+        ["Choose the bench by the front gate as the location."] = "地点应该是校门口的长椅旁。",
+        ["Lead the teacher along the path back to your friend."] = "沿着小路带老师回到同学身边。",
+        ["Invite the classmate, then wait while they join the group."] = "邀请同学，等待他们加入游戏。",
+        ["Move onto the open ring so everyone has room."] = "走到空出来的圆环，让每个人都有空间。",
+        ["Choose a classmate who has not received the ball yet."] = "选择还没有接到球的同学。",
+
         // Welcome screen, level list, and settings
         ["What should\nI do?"] = "我该\n怎么做？",
         ["WHAT SHOULD I DO?"] = "我该怎么做？",
