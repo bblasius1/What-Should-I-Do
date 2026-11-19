@@ -14,6 +14,7 @@ EXPECTED = ["MainMenu", "Street", "School", "Playground"]
 FILES = [
     "Assets/Scripts/Audio/GameAudioManager.cs",
     "Assets/Scripts/Audio/ProceduralMusicLibrary.cs",
+    "Assets/Scripts/Audio/UiSoundLibrary.cs",
     "Assets/Scripts/Learning/LearningObjectiveId.cs",
     "Assets/Scripts/Learning/LearningEvent.cs",
     "Assets/Scripts/Learning/LearningProfile.cs",
