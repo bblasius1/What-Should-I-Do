@@ -23,6 +23,8 @@ jobs:
     name: Build Unity WebGL and publish GitHub Pages
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    env:
+      WEBGL_PLAYER_DIR: build/WebGL/WhatShouldIDo
     steps:
       - name: Check out game source
         uses: actions/checkout@v4
@@ -65,14 +67,14 @@ jobs:
 
       - name: Verify the generated WebGL player
         run: |
-          test -s build/WebGL/index.html
-          test -d build/WebGL/Build
-          find build/WebGL -maxdepth 2 -type f -printf '%p %s bytes\n' | sort
-          if ! find build/WebGL/Build -type f \( -name '*.wasm' -o -name '*.wasm.unityweb' \) | grep -q .; then
+          test -s "$WEBGL_PLAYER_DIR/index.html"
+          test -d "$WEBGL_PLAYER_DIR/Build"
+          find "$WEBGL_PLAYER_DIR" -maxdepth 2 -type f -printf '%p %s bytes\n' | sort
+          if ! find "$WEBGL_PLAYER_DIR/Build" -type f \( -name '*.wasm' -o -name '*.wasm.unityweb' \) | grep -q .; then
             echo "::error::Unity WebGL build is missing its WebAssembly player."
             exit 1
           fi
-          if ! find build/WebGL/Build -type f \( -name '*.data' -o -name '*.data.unityweb' \) | grep -q .; then
+          if ! find "$WEBGL_PLAYER_DIR/Build" -type f \( -name '*.data' -o -name '*.data.unityweb' \) | grep -q .; then
             echo "::error::Unity WebGL build is missing its data file."
             exit 1
           fi
@@ -81,7 +83,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: What-Should-I-Do-WebGL
-          path: build/WebGL
+          path: ${{ env.WEBGL_PLAYER_DIR }}
           if-no-files-found: error
           retention-days: 14
 
@@ -90,6 +92,6 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
-          publish_dir: build/WebGL
+          publish_dir: ${{ env.WEBGL_PLAYER_DIR }}
           force_orphan: false
           commit_message: "Deploy updated Unity WebGL game from ${{ github.sha }}"
