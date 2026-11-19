@@ -11,6 +11,8 @@
   header { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
   h1 { font-size: clamp(22px, 4vw, 34px); letter-spacing: -.035em; margin: 0; }
   button { color: #173033; background: #ffdc8a; border: 0; border-radius: 8px; padding: 8px 13px; font: inherit; font-weight: 650; cursor: pointer; }
+  .game-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+  #music-status { margin: 0 0 8px; }
   button:disabled { opacity: .55; cursor: default; }
   .game { position: relative; background: #0c2327; border-radius: 12px; overflow: hidden; aspect-ratio: 16 / 9; }
   canvas { display: block; width: 100%; height: 100%; }
@@ -25,8 +27,13 @@
 <main>
   <header>
     <h1>What Should I Do?</h1>
-    <button id="fullscreen" type="button" disabled>Full screen</button>
+    <div class="game-controls">
+      <button id="music-toggle" type="button" aria-pressed="false">Background music</button>
+      <button id="fullscreen" type="button" disabled>Full screen</button>
+    </div>
   </header>
+  <p id="music-status" role="status" hidden></p>
+  <audio id="background-music" src="Audio/BGM_Street.ogg" preload="none" loop></audio>
   <div class="game">
     <canvas id="unity-canvas" width="1280" height="720" tabindex="0" aria-label="What Should I Do? game"></canvas>
     <div id="loading" class="status" role="status">
@@ -46,6 +53,38 @@
   const message = document.getElementById("loading-message");
   const progress = document.getElementById("progress");
   const loader = document.createElement("script");
+  const music = document.getElementById("background-music");
+  const musicToggle = document.getElementById("music-toggle");
+  const musicStatus = document.getElementById("music-status");
+  let musicChoiceMade = false;
+
+  music.volume = 0.32;
+
+  function playMusic() {
+    musicStatus.hidden = true;
+    music.play().catch(error => {
+      if (error.name === "AbortError") return;
+      musicStatus.textContent = "Music could not start. Select Background music to retry.";
+      musicStatus.hidden = false;
+    });
+  }
+
+  music.addEventListener("playing", () => musicToggle.setAttribute("aria-pressed", "true"));
+  music.addEventListener("pause", () => musicToggle.setAttribute("aria-pressed", "false"));
+  musicToggle.addEventListener("click", () => {
+    musicChoiceMade = true;
+    if (music.paused) playMusic();
+    else music.pause();
+  });
+
+  function startMusicOnFirstGameInteraction() {
+    if (!loading.hidden || musicChoiceMade) return;
+    musicChoiceMade = true;
+    playMusic();
+  }
+
+  canvas.addEventListener("click", startMusicOnFirstGameInteraction);
+  canvas.addEventListener("keydown", startMusicOnFirstGameInteraction);
 
   function showError(error) {
     progress.hidden = true;
