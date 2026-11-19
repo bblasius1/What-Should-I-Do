@@ -16,8 +16,10 @@ internal static class AdaptiveLearningManager
         if (mistakes >= guidedThreshold)
             return GameLanguage.Text(GuidedHint(objective));
 
+        // Keep the original, context-specific hint on the first mistake.
+        // Escalate to the explicit step-by-step hint on repeated mistakes.
         if (mistakes >= gentleThreshold)
-            return GameLanguage.Text("Take your time and think about the clue.");
+            return GameLanguage.Text(defaultHint);
 
         return GameLanguage.Text(defaultHint);
     }
