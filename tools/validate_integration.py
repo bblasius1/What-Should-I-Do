@@ -23,6 +23,7 @@ FILES = [
     "Assets/Scripts/Quiz/CrossingQuiz.cs",
     "Assets/Scripts/Quiz/QuizUi.cs",
     "Assets/Scripts/Quiz/WelcomeMenu.cs",
+    "Assets/Scripts/Traffic/StreetTraffic.cs",
     "Assets/Scripts/School/SchoolHelpStage.cs",
     "Assets/Scripts/Playground/PlaygroundStage.cs",
     "Assets/Scripts/Localization/GameLanguage.cs",
@@ -62,8 +63,10 @@ for name in EXPECTED:
     ], text=True, capture_output=True, check=True)
     metadata = json.loads(proc.stdout)
     duration = float(metadata.get("format", {}).get("duration", 0))
-    channels = int(metadata.get("streams", [{}])[0].get("channels", 0))
-    if duration < 30 or channels < 1:
+    audio_stream = metadata.get("streams", [{}])[0]
+    channels = int(audio_stream.get("channels", 0))
+    codec = audio_stream.get("codec_name")
+    if duration < 50 or duration > 120 or channels != 2 or codec != "vorbis":
         print("INVALID MUSIC:", name, duration, channels)
         failed = True
     else:
