@@ -98,6 +98,7 @@ public class CrossingQuiz : MonoBehaviour
             questions = BuildDefaultQuestions();
         }
 
+        GameAudioManager.EnsureInstance();
         startPosition = player.transform.position;
         startRotation = player.transform.rotation;
         player.CrossingRules = this;
@@ -224,6 +225,7 @@ public class CrossingQuiz : MonoBehaviour
 
         crossingAttemptScored = true;
         crossingMistakes++;
+        LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.Crossing_WaitForTraffic, LearningEventType.Mistake));
     }
 
     bool IsOnCrossing(float z) => z >= StripeStart && z <= StripeEnd;
@@ -280,6 +282,9 @@ public class CrossingQuiz : MonoBehaviour
             checkedLeft = true;
         else
             checkedRight = true;
+
+        if (checkedLeft && checkedRight && !LearningTracker.IsCompleted(LearningObjectiveId.Crossing_LookBothWays))
+            LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.Crossing_LookBothWays, LearningEventType.Completed));
     }
 
     CurbLook BlockingTraffic()
@@ -353,13 +358,24 @@ public class CrossingQuiz : MonoBehaviour
         if (choice != question.correctIndex)
         {
             crossingMistakes++;
-            ui.ShowFeedback(string.IsNullOrWhiteSpace(question.hint) ? "Try another answer." : question.hint, false);
+            LearningObjectiveId objective = QuestionObjective(questionIndex);
+            LearningTracker.RecordEvent(new LearningEvent(objective, LearningEventType.Mistake));
+            ui.ShowFeedback(AdaptiveLearningManager.HintFor(objective,
+                string.IsNullOrWhiteSpace(question.hint) ? "Try another answer." : question.hint), false);
             return;
         }
 
+        LearningTracker.RecordEvent(new LearningEvent(QuestionObjective(questionIndex), LearningEventType.Completed));
         ui.ShowFeedback("That's right!", true);
         StartCoroutine(AdvanceAfterDelay());
     }
+
+    static LearningObjectiveId QuestionObjective(int index) => index switch
+    {
+        0 => LearningObjectiveId.Crossing_UseZebra,
+        1 => LearningObjectiveId.Crossing_LookBothWays,
+        _ => LearningObjectiveId.Crossing_WaitForTraffic,
+    };
 
     IEnumerator AdvanceAfterDelay()
     {
@@ -382,6 +398,7 @@ public class CrossingQuiz : MonoBehaviour
     {
         stage = Stage.Complete;
         ResetLookChecks();
+        LearningTracker.RecordEvent(new LearningEvent(LearningObjectiveId.Crossing_UseZebra, LearningEventType.Completed));
         ShowLevelResult(GameLevel.Crossing, LevelProgress.StarsForMistakes(crossingMistakes));
     }
 
@@ -398,6 +415,12 @@ public class CrossingQuiz : MonoBehaviour
         school?.Stop();
         playground?.Stop();
         welcome.HideForPlay();
+        GameAudioManager.EnsureInstance().PlayMusic(level switch
+        {
+            GameLevel.Crossing => GameMusicTrack.Street,
+            GameLevel.School => GameMusicTrack.School,
+            _ => GameMusicTrack.Playground,
+        });
         ResetLookChecks();
         ui.SetLevelHeading(level);
 
@@ -497,6 +520,7 @@ public class CrossingQuiz : MonoBehaviour
         ui.HideModal();
         ui.SetVisible(false);
         welcome.Show();
+        GameAudioManager.EnsureInstance().PlayMusic(GameMusicTrack.MainMenu);
 
         if (viewCamera != null)
         {
@@ -512,6 +536,7 @@ public class CrossingQuiz : MonoBehaviour
         practiceStarted = false;
         crossingMistakes = 0;
         crossingAttemptScored = false;
+        GameAudioManager.EnsureInstance().StopVoice();
         player.ResetTo(startPosition, startRotation);
         questionIndex = 0;
         reminderUntil = 0f;
