@@ -417,6 +417,7 @@ public class CrossingQuiz : MonoBehaviour
         school?.Stop();
         playground?.Stop();
         welcome.HideForPlay();
+        traffic?.SetTrafficAudioEnabled(level == GameLevel.Crossing);
         GameAudioManager.EnsureInstance().StopVoice();
         GameAudioManager.EnsureInstance().PlayMusic(level switch
         {
@@ -513,6 +514,7 @@ public class CrossingQuiz : MonoBehaviour
     void ShowWelcome()
     {
         stage = Stage.Welcome;
+        traffic?.SetTrafficAudioEnabled(false);
         school?.Stop();
         playground?.Stop();
         followCamera?.SetLevelView(GameLevel.Crossing);
