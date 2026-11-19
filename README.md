@@ -1,6 +1,6 @@
 # What Should I Do?
 
-**[Play now in your browser](https://bblasius1.github.io/What-Should-I-Do-2026-11-07_17-26-32/)**
+**[Play now in your browser](https://bblasius1.github.io/What-Should-I-Do-2026/)**
 
 A short 3D game with three everyday challenges for children. Open the link on a computer, wait for the game to load, then select **Start**. No installation or GitHub account is required.
 
